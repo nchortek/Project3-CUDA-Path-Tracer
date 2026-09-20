@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(cis565_path_tracer LANGUAGES CXX)
+project(cis565_path_tracer LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

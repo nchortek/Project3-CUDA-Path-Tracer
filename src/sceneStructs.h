@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cuda_runtime.h>
-
 #include "glm/glm.hpp"
 
 #include <string>

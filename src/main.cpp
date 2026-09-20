@@ -1,6 +1,4 @@
-#include "glslUtility.hpp"
 #include "image.h"
-#include "pathtrace.h"
 #include "scene.h"
 #include "sceneStructs.h"
 #include "utilities.h"
@@ -8,15 +6,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 
-#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
 
-#include <cuda_runtime.h>
-#include <cuda_gl_interop.h>
-
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -34,8 +29,6 @@ static double lastX;
 static double lastY;
 
 static bool camchanged = true;
-static float dtheta = 0, dphi = 0;
-static glm::vec3 cammove;
 
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
@@ -49,18 +42,13 @@ int iteration;
 int width;
 int height;
 
-GLuint positionLocation = 0;
-GLuint texcoordsLocation = 1;
-GLuint pbo;
-GLuint displayImage;
-
 GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
 // Forward declarations for window loop and interactivity
-void runCuda();
+void updateCameraAndRender();
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -78,123 +66,6 @@ std::string currentTimeString()
 //----------SETUP STUFF----------
 //-------------------------------
 
-void initTextures()
-{
-    glGenTextures(1, &displayImage);
-    glBindTexture(GL_TEXTURE_2D, displayImage);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
-}
-
-void initVAO(void)
-{
-    GLfloat vertices[] = {
-        -1.0f, -1.0f,
-        1.0f, -1.0f,
-        1.0f,  1.0f,
-        -1.0f,  1.0f,
-    };
-
-    GLfloat texcoords[] = {
-        1.0f, 1.0f,
-        0.0f, 1.0f,
-        0.0f, 0.0f,
-        1.0f, 0.0f
-    };
-
-    GLushort indices[] = { 0, 1, 3, 3, 1, 2 };
-
-    GLuint vertexBufferObjID[3];
-    glGenBuffers(3, vertexBufferObjID);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjID[0]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer((GLuint)positionLocation, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(positionLocation);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjID[1]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(texcoords), texcoords, GL_STATIC_DRAW);
-    glVertexAttribPointer((GLuint)texcoordsLocation, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(texcoordsLocation);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexBufferObjID[2]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-}
-
-GLuint initShader()
-{
-    const char* attribLocations[] = { "Position", "Texcoords" };
-    GLuint program = glslUtility::createDefaultProgram(attribLocations, 2);
-    GLint location;
-
-    //glUseProgram(program);
-    if ((location = glGetUniformLocation(program, "u_image")) != -1)
-    {
-        glUniform1i(location, 0);
-    }
-
-    return program;
-}
-
-void deletePBO(GLuint* pbo)
-{
-    if (pbo)
-    {
-        // unregister this buffer object with CUDA
-        cudaGLUnregisterBufferObject(*pbo);
-
-        glBindBuffer(GL_ARRAY_BUFFER, *pbo);
-        glDeleteBuffers(1, pbo);
-
-        *pbo = (GLuint)NULL;
-    }
-}
-
-void deleteTexture(GLuint* tex)
-{
-    glDeleteTextures(1, tex);
-    *tex = (GLuint)NULL;
-}
-
-void cleanupCuda()
-{
-    if (pbo)
-    {
-        deletePBO(&pbo);
-    }
-    if (displayImage)
-    {
-        deleteTexture(&displayImage);
-    }
-}
-
-void initCuda()
-{
-    cudaGLSetGLDevice(0);
-
-    // Clean up on program exit
-    atexit(cleanupCuda);
-}
-
-void initPBO()
-{
-    // set up vertex data parameter
-    int num_texels = width * height;
-    int num_values = num_texels * 4;
-    int size_tex_data = sizeof(GLubyte) * num_values;
-
-    // Generate a buffer ID called a PBO (Pixel Buffer Object)
-    glGenBuffers(1, &pbo);
-
-    // Make this the current UNPACK buffer (OpenGL is state-based)
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-
-    // Allocate data for the buffer. 4-channel 8-bit image
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
-    cudaGLRegisterBufferObject(pbo);
-}
-
 void errorCallback(int error, const char* description)
 {
     fprintf(stderr, "%s\n", description);
@@ -206,45 +77,47 @@ bool init()
 
     if (!glfwInit())
     {
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Failed to initialize GLFW\n");
+        return false;
+    }
+
+    // We're using Vulkan, so avoid creating an OpenGL context 
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+    if (!glfwVulkanSupported())
+    {
+        glfwTerminate();
+        fprintf(stderr, "Vulkan not supported by GLFW\n");
+        return false;
     }
 
     window = glfwCreateWindow(width, height, "CIS 565 Path Tracer", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
+        fprintf(stderr, "Failed to create GLFW window\n");
         return false;
     }
-    glfwMakeContextCurrent(window);
+
     glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, mousePositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
-    // Set up GL context
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK)
-    {
-        return false;
-    }
-    printf("Opengl Version:%s\n", glGetString(GL_VERSION));
-    //Set up ImGui
+    // NCHORTEK TODO: print vulkan version instead?
+    //printf("Opengl Version:%s\n", glGetString(GL_VERSION));
 
+    // NCHORTEK TODO: create and init() VulkanContext and Swapchain
+    
+    //Set up ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     io = &ImGui::GetIO(); (void)io;
     ImGui::StyleColorsLight();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 120");
-
-    // Initialize other stuff
-    initVAO();
-    initTextures();
-    initCuda();
-    initPBO();
-    GLuint passthroughProgram = initShader();
-
-    glUseProgram(passthroughProgram);
-    glActiveTexture(GL_TEXTURE0);
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+    // NCHORTEK TODO: fill out ImGui_ImplVulkan_InitInfo struct
+    //ImGui_ImplVulkan_InitInfo imguiVkInitInfo{};
+    //ImGui_ImplVulkan_Init(&imguiVkInitInfo);
 
     return true;
 }
@@ -254,13 +127,12 @@ void InitImguiData(GuiDataContainer* guiData)
     imguiData = guiData;
 }
 
-
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
 {
     mouseOverImGuiWinow = io->WantCaptureMouse;
 
-    ImGui_ImplOpenGL3_NewFrame();
+    //ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
@@ -288,10 +160,9 @@ void RenderImGui()
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
 
-
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+    // NCHORTEK TODO: This needs a command buffer and pipeline
+    //ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData());
 }
 
 bool MouseOverImGuiWindow()
@@ -305,28 +176,23 @@ void mainLoop()
     {
         glfwPollEvents();
 
-        runCuda();
+        updateCameraAndRender();
 
         std::string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-        glBindTexture(GL_TEXTURE_2D, displayImage);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // Binding GL_PIXEL_UNPACK_BUFFER back to default
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-
-        // VAO, shader program, and texture already bound
-        glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
 
         // Render ImGui Stuff
-        RenderImGui();
+        // NCHORTEK TODO
+        // RenderImGui();
 
-        glfwSwapBuffers(window);
+        // NCHORTEK TODO: add vulkan image presentation here
+        // - wait for imageAvailable fence
+        // - acquire next image
+        // - queue submit
+        // - queue present
     }
 
-    ImGui_ImplOpenGL3_Shutdown();
+    //ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
@@ -380,11 +246,16 @@ int main(int argc, char** argv)
     zoom = glm::length(cam.position - ogLookAt);
 
     // Initialize CUDA and GL components
-    init();
+    if (!init())
+    {
+        // Initialization failed
+        return 1;
+    }
 
     // Initialize ImGui Data
     InitImguiData(guiData);
-    InitDataContainer(guiData);
+    // NCHORTEK TODO: this eventually needs a vulkan-specific equivalent
+    //InitDataContainer(guiData);
 
     // GLFW main loop
     mainLoop();
@@ -394,6 +265,12 @@ int main(int argc, char** argv)
 
 void saveImage()
 {
+    if (iteration == 0)
+    {
+        // No image data available to save
+        return;
+    }
+    
     float samples = iteration;
     // output image file
     Image img(width, height);
@@ -418,7 +295,7 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-void runCuda()
+void updateCameraAndRender()
 {
     if (camchanged)
     {
@@ -441,33 +318,33 @@ void runCuda()
         camchanged = false;
     }
 
-    // Map OpenGL buffer object for writing from CUDA on a single GPU
-    // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
-
     if (iteration == 0)
     {
-        pathtraceFree();
-        pathtraceInit(scene);
+        // NCHORTEK TODO
+        //pathtraceFree();
+        //pathtraceInit(scene);
     }
 
     if (iteration < renderState->iterations)
     {
-        uchar4* pbo_dptr = NULL;
-        iteration++;
-        cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
+        // NCHORTEK TODO
+        //uchar4* pbo_dptr = NULL;
+        //iteration++;
+        //cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
 
         // execute the kernel
-        int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+        //int frame = 0;
+        //pathtrace(pbo_dptr, frame, iteration);
 
         // unmap buffer object
-        cudaGLUnmapBufferObject(pbo);
+        //cudaGLUnmapBufferObject(pbo);
     }
     else
     {
+        // NCHORTEK TODO
         saveImage();
-        pathtraceFree();
-        cudaDeviceReset();
+        //pathtraceFree();
+        //cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }
 }
@@ -484,7 +361,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         {
             case GLFW_KEY_ESCAPE:
                 saveImage();
-                glfwSetWindowShouldClose(window, GL_TRUE);
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
                 break;
             case GLFW_KEY_S:
                 saveImage();
