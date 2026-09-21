@@ -189,6 +189,7 @@ bool VulkanContext::initVmaAllocator()
         fprintf(stderr, "vmaImportVulkanFunctionsFromVolk failed\n");
         return false;
     }
+
     allocatorInfo.pVulkanFunctions = &vmaFunctions;
 
     if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS)

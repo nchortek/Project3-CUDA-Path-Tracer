@@ -3,19 +3,79 @@
 #include "context.h"
 #include "swapchain.h"
 
+#include <array>
 #include <cstdio>
 
 bool Renderer::init(VulkanContext& context, Swapchain& swapchain, uint32_t width, uint32_t height)
 {
-    // NCHORTEK TODO
     m_context = &context;
     m_swapchain = &swapchain;
+    m_renderExtent.width = width;
+    m_renderExtent.height = height;
+
+    if (!createCommandPool())
+    {
+        destroy();
+        return false;
+    }
+
+    if (!createCommandBuffers())
+    {
+        destroy();
+        return false;
+    }
+
+    if (!createSyncObjects())
+    {
+        destroy();
+        return false;
+    }
+
+    if (!createStorageImages())
+    {
+        destroy();
+        return false;
+    }
+
     return true;
 }
 
 void Renderer::destroy()
 {
-    // NCHORTEK TODO
+    if (m_context == nullptr)
+    {
+        return;
+    }
+
+    VkDevice device = m_context->getDevice();
+    if (device != VK_NULL_HANDLE)
+    {
+        vkDeviceWaitIdle(device);
+    }
+
+    // Destroy in reverse order of creation
+    // storage images --> sync objects --> command pool (automatically destroys command buffers)
+    destroyStorageImage(m_displayImage);
+    destroyStorageImage(m_accumImage);
+
+    for (FrameData& frameData : m_frames)
+    {
+        frameData.commandBuffer = VK_NULL_HANDLE;
+
+        vkDestroySemaphore(device, frameData.imageAvailableSemaphore, nullptr);
+        frameData.imageAvailableSemaphore = VK_NULL_HANDLE;
+
+        vkDestroyFence(device, frameData.inFlightFence, nullptr);
+        frameData.inFlightFence = VK_NULL_HANDLE;
+    }
+
+    vkDestroyCommandPool(device, m_commandPool, nullptr);
+    m_commandPool = VK_NULL_HANDLE;
+
+    m_frames = {};
+    m_frameInFlight = 0;
+    m_context = nullptr;
+    m_swapchain = nullptr;
 }
 
 void Renderer::drawFrame()
@@ -77,6 +137,7 @@ bool Renderer::createCommandPool()
     if (vkCreateCommandPool(m_context->getDevice(), &poolInfo, nullptr, &m_commandPool)
         != VK_SUCCESS)
     {
+        m_commandPool = VK_NULL_HANDLE;
         fprintf(stderr, "Failed to create command pool.\n");
         return false;
     }
@@ -129,12 +190,14 @@ bool Renderer::createSyncObjects()
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frameData.imageAvailableSemaphore)
             != VK_SUCCESS)
         {
+            frameData.imageAvailableSemaphore = VK_NULL_HANDLE;
             fprintf(stderr, "Failed to create image-available semaphore.\n");
             return false;
         }
 
         if (vkCreateFence(device, &fenceInfo, nullptr, &frameData.inFlightFence) != VK_SUCCESS)
         {
+            frameData.inFlightFence = VK_NULL_HANDLE;
             fprintf(stderr, "Failed to create in-flight fence.\n");
             return false;
         }
@@ -184,19 +247,91 @@ bool Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlag
 
 bool Renderer::createStorageImage(VkFormat format, VkImageUsageFlags usage, StorageImage& storageImage)
 {
-    // NCHORTEK TODO
-    return false;
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.format = format;
+    imageCreateInfo.extent = {
+        m_renderExtent.width,
+        m_renderExtent.height,
+        1
+    };
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.usage = usage;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    if (vmaCreateImage(m_context->getAllocator(), &imageCreateInfo, &allocCreateInfo, &storageImage.image, &storageImage.allocation, nullptr)
+        != VK_SUCCESS)
+    {
+        storageImage = {};
+        fprintf(stderr, "Failed to create VkImage for storage image.\n");
+        return false;
+    }
+
+    storageImage.format = format;
+
+    if (!createImageView(storageImage.image, format, VK_IMAGE_ASPECT_COLOR_BIT, storageImage.imageView))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 void Renderer::destroyStorageImage(StorageImage& storageImage)
 {
-    // NCHORTEK TODO
+    // Destroy in reverse order of creation
+    vkDestroyImageView(m_context->getDevice(), storageImage.imageView, nullptr);
+    vmaDestroyImage(m_context->getAllocator(), storageImage.image, storageImage.allocation);
+    storageImage = {};
 }
 
 bool Renderer::createStorageImages()
 {
-    // NCHORTEK TODO
-    return false;
+    if (!createStorageImage(
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        m_accumImage))
+    {
+        return false;
+    }
+
+    if (!createStorageImage(
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        m_displayImage))
+    {
+        return false;
+    }
+
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    std::array<VkImage, 2> storageImages = { m_accumImage.image, m_displayImage.image };
+    for (VkImage image : storageImages)
+    {
+        // Transition each storage image to VK_IMAGE_LAYOUT_GENERAL so shaders have read/write access.
+        recordImageBarrier(
+            commandBuffer,
+            image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_PIPELINE_STAGE_2_NONE,
+            VK_ACCESS_2_NONE,
+            VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT);
+    }
+
+    endSingleTimeCommands(commandBuffer);
+
+    return true;
 }
 
 void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex)

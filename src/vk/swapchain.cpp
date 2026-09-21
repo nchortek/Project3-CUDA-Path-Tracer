@@ -52,6 +52,16 @@ bool Swapchain::recreate(uint32_t width, uint32_t height)
     vkb::Swapchain oldSwapchain = m_vkbSwapchain;
     cleanupPerImageResources();
 
+    // VK_FORMAT_B8G8R8A8_UNORM is the format every Windows surface supports.
+    // UNORM (no hardware sRGB conversion) is what ImGui expects, since it writes
+    // sRGB colors as-is.
+    // 
+    // VK_COLOR_SPACE_SRGB_NONLINEAR_KHR (available on all surfaces) declares that
+    // stored values are sRGB-encoded, which we will guarantee by writing gamma-encoded
+    // values in our shaders.
+    // 
+    // VK_IMAGE_USAGE_TRANSFER_DST_BIT is required because we will blit rendered images
+    // into the swapchain image prior to presentation.
     auto swapchainResult = vkb::SwapchainBuilder(m_context->getVkbDevice())
         .set_old_swapchain(oldSwapchain)
         .set_desired_format({
@@ -127,6 +137,7 @@ bool Swapchain::createRenderFinishedSemaphores()
         if (vkCreateSemaphore(m_context->getDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores.at(i))
             != VK_SUCCESS)
         {
+            m_renderFinishedSemaphores.at(i) = VK_NULL_HANDLE;
             return false;
         }
     }
