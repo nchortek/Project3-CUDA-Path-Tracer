@@ -6,6 +6,8 @@
 #include <array>
 #include <cstdio>
 
+#include <VkBootstrap.h>
+
 bool Renderer::init(VulkanContext& context, Swapchain& swapchain, uint32_t width, uint32_t height)
 {
     m_context = &context;
@@ -78,9 +80,138 @@ void Renderer::destroy()
     m_swapchain = nullptr;
 }
 
-void Renderer::drawFrame()
+bool Renderer::drawFrame()
 {
-    // NCHORTEK TODO
+    VkDevice device = m_context->getDevice();
+    VkSwapchainKHR swapchain = m_swapchain->getHandle();
+    FrameData& frameData = m_frames.at(m_frameInFlight);
+
+    // Wait for an earlier frame to finish rendering before kicking off a new one,
+    // by specifying the inFlightFence
+    int fenceCount = 1;
+    vkWaitForFences(device, fenceCount, &frameData.inFlightFence, VK_TRUE, kMaxTimeout);
+
+    // Acquire an image from the swapchain, and signal imageAvailableSemaphore when this
+    // command completes
+    uint32_t availableImageIndex;
+    VkResult result = vkAcquireNextImageKHR(
+        device,
+        swapchain,
+        kMaxTimeout,
+        frameData.imageAvailableSemaphore,
+        VK_NULL_HANDLE,
+        &availableImageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        // The swap chain has become incompatible with the surface and can no longer
+        // be used for rendering (it becomes impossible to present).
+        // This usually happens after a window minimzation/resize--recreate the swap chain
+        // and then try rendering again.
+        return m_swapchain->recreate(m_renderExtent.width, m_renderExtent.height);
+    }
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    {
+        // We exclude VK_SUBOPTIMAL_KHR here because that means the swap chain can still be
+        // used to successfully present to the surface, even though the surface properties are
+        // no longer matched exactly. All other result values indicate a critical image-acquisition
+        // failure.
+        fprintf(stderr, "Failed to acquire swap chain image.\n");
+        return false;
+    }
+
+    // After waiting, we need to manually reset the fence to the unsignaled state.
+    // Crucially, we only reset the fence once we know we will be submitting new work
+    // (after we have verified that the swapchain is valid and we have successfully
+    // acquired an available image to render to)
+    vkResetFences(device, fenceCount, &frameData.inFlightFence);
+
+    // Record the command buffer, setting it up with all the required rendering commands
+    if (!this->recordCommandBuffer(frameData.commandBuffer, availableImageIndex))
+    {
+        return false;
+    }
+
+    // Prepare to submit our command buffer!
+    // Instruct the GPU to wait for an available image before executing the
+    // blit-stage commands in the command buffer. This stage must match the
+    // swapchain barrier's srcStage (blit), so the layout transition happens
+    // after the acquire.
+    VkSemaphoreSubmitInfo waitSemaphoreInfo{};
+    waitSemaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    waitSemaphoreInfo.semaphore = frameData.imageAvailableSemaphore;
+    waitSemaphoreInfo.stageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+
+    // Specify which semaphore to signal once the command buffer has finished execution.
+    // VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT ensures that the semaphore is signaled only
+    // after every command in the buffer has completed.
+    VkSemaphoreSubmitInfo signalSemaphoreInfo{};
+    signalSemaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signalSemaphoreInfo.semaphore = m_swapchain->getRenderFinishedSemaphore(availableImageIndex);
+    signalSemaphoreInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+
+    VkCommandBufferSubmitInfo commandBufferInfo{};
+    commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    commandBufferInfo.commandBuffer = frameData.commandBuffer;
+
+    VkSubmitInfo2 submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.waitSemaphoreInfoCount = 1;
+    submitInfo.pWaitSemaphoreInfos = &waitSemaphoreInfo;
+    submitInfo.commandBufferInfoCount = 1;
+    submitInfo.pCommandBufferInfos = &commandBufferInfo;
+    submitInfo.signalSemaphoreInfoCount = 1;
+    submitInfo.pSignalSemaphoreInfos = &signalSemaphoreInfo;
+
+    // Submit this frame's command buffer to the graphics queue, and tell the GPU
+    // to signal inFlightFence when the command buffer finishes execution
+    if (vkQueueSubmit2(m_context->getGraphicsQueue(), 1, &submitInfo, frameData.inFlightFence)
+        != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to submit the frame command buffer.\n");
+        return false;
+    }
+
+    // Now that we have told the GPU to render a frame, we need to actually
+    // handle presentation of that frame to the screen. Presentation can't
+    // occur until rendering finishes, so wait on the appropriate semaphore
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &signalSemaphoreInfo.semaphore;
+
+    // Specify the swap chains to present images to and the index of the
+    // image for each swap chain. There is typically just one swapchain
+    VkSwapchainKHR swapChains[] = { swapchain };
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &availableImageIndex;
+    presentInfo.pResults = nullptr;
+
+    // Finally, present our rendered frame to the screen!
+    result = vkQueuePresentKHR(m_context->getGraphicsQueue(), &presentInfo);
+
+    // Recreate the swap chain if it has become invalid/suboptimal
+    if (result == VK_ERROR_OUT_OF_DATE_KHR
+        || result == VK_SUBOPTIMAL_KHR)
+    {
+        // VK_SUBOPTIMAL_KHR is considered a successful result (i.e. the image was
+        // successfully presented), but we still should try to fix the swapchain.
+        if (!m_swapchain->recreate(m_renderExtent.width, m_renderExtent.height))
+        {
+            return false;
+        }
+    }
+    else if (result != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to present the swap chain image.\n");
+        return false;
+    }
+
+    // Increment the current frame index and ensure it loops around after
+    // every kFramesInFlight enqueued frames.
+    m_frameInFlight = (m_frameInFlight + 1) % kFramesInFlight;
+    return true;
 }
 
 VkCommandBuffer Renderer::beginSingleTimeCommands()
@@ -131,7 +262,7 @@ bool Renderer::createCommandPool()
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     // Each command pool can only allocate command buffers that are submitted
-    // on a single type of queue. We will use command buffers for drawing.
+    // on a single type of queue. We will use command buffers for rendering.
     poolInfo.queueFamilyIndex = m_context->getGraphicsQueueFamily();
 
     if (vkCreateCommandPool(m_context->getDevice(), &poolInfo, nullptr, &m_commandPool)
@@ -314,7 +445,11 @@ bool Renderer::createStorageImages()
 
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-    std::array<VkImage, 2> storageImages = { m_accumImage.image, m_displayImage.image };
+    std::array<VkImage, 2> storageImages = {
+        m_accumImage.image,
+        m_displayImage.image
+    };
+
     for (VkImage image : storageImages)
     {
         // Transition each storage image to VK_IMAGE_LAYOUT_GENERAL so shaders have read/write access.
@@ -334,9 +469,125 @@ bool Renderer::createStorageImages()
     return true;
 }
 
-void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex)
+bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex)
 {
-    // NCHORTEK TODO
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // Only relevant for secondary command buffers, leave as null
+    beginInfo.pInheritanceInfo = nullptr;
+
+    // If the command buffer was already recorded once, then a call to
+    // vkBeginCommandBuffer will implicitly reset it. It's not possible
+    // to append commands to a buffer at a later time. This makes
+    // manual resetting unnecessary.
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to begin recording command buffer.\n");
+        return false;
+    }
+
+    const VkImage swapchainImage = m_swapchain->getImage(swapchainImageIndex);
+    const VkExtent2D swapchainExtent = m_swapchain->getExtent();
+    const VkImageSubresourceRange colorRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    // Ensure that we do not clear the display image until the previous frame's blit
+    // has finished reading it
+    recordImageBarrier(
+        commandBuffer,
+        m_displayImage.image,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_PIPELINE_STAGE_2_BLIT_BIT,
+        VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_CLEAR_BIT,
+        VK_ACCESS_2_TRANSFER_WRITE_BIT);
+
+    // Clear the display image to debug magenta
+    const VkClearColorValue clearColor{
+        {
+            1.0f, 0.0f, 1.0f, 1.0f
+        }
+    };
+    vkCmdClearColorImage(
+        commandBuffer,
+        m_displayImage.image,
+        VK_IMAGE_LAYOUT_GENERAL,
+        &clearColor,
+        1,
+        &colorRange);
+
+    // Ensure that the display image clear writes finish before the blit reads them
+    recordImageBarrier(
+        commandBuffer,
+        m_displayImage.image,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_PIPELINE_STAGE_2_CLEAR_BIT,
+        VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_BLIT_BIT,
+        VK_ACCESS_2_TRANSFER_READ_BIT);
+
+    // Ensure that the swapchain image transitions to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    // and that the transition occurs after the submit's blit-stage wait on the imageAvailable 
+    // semaphore completes. This guarantees that the swapchain image is done being used by the
+    // swapchain for presentation. Additionally, ensure that this frame's blit does not begin
+    // until after the layout transition occurs.
+    recordImageBarrier(
+        commandBuffer,
+        swapchainImage,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_PIPELINE_STAGE_2_BLIT_BIT,
+        VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_BLIT_BIT,
+        VK_ACCESS_2_TRANSFER_WRITE_BIT);
+
+    // Blit the display image to our swapchain image. This automatically handles any relevant
+    // image format conversions
+    VkImageBlit imageBlit{};
+    imageBlit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    imageBlit.srcOffsets[1] = {
+        static_cast<int32_t>(m_renderExtent.width),
+        static_cast<int32_t>(m_renderExtent.height),
+        1
+    };
+    imageBlit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    imageBlit.dstOffsets[1] = {
+        static_cast<int32_t>(swapchainExtent.width),
+        static_cast<int32_t>(swapchainExtent.height),
+        1
+    };
+
+    vkCmdBlitImage(
+        commandBuffer,
+        m_displayImage.image,
+        VK_IMAGE_LAYOUT_GENERAL,
+        swapchainImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &imageBlit,
+        VK_FILTER_NEAREST);
+
+    // Transition the swapchain image into presentation layout after the blit writes are visible
+    recordImageBarrier(
+        commandBuffer,
+        swapchainImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_2_BLIT_BIT,
+        VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_NONE,
+        VK_ACCESS_2_NONE);
+
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to end recording to command buffer.\n");
+        return false;
+    }
+
+    return true;
 }
 
 void Renderer::recordImageBarrier(

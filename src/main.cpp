@@ -220,6 +220,16 @@ void mainLoop()
     {
         glfwPollEvents();
 
+        // Sleep as long as the window is minimized
+        int curWidth = 0;
+        int curHeight = 0;
+        glfwGetFramebufferSize(window, &curWidth, &curHeight);
+        if (curWidth == 0 || curHeight == 0)
+        {
+            glfwWaitEvents();
+            continue;
+        }
+
         updateCameraAndRender();
 
         std::string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
@@ -229,11 +239,11 @@ void mainLoop()
         // NCHORTEK TODO
         // RenderImGui();
 
-        // NCHORTEK TODO: add vulkan image presentation here
-        // - wait for imageAvailable fence
-        // - acquire next image
-        // - queue submit
-        // - queue present
+        if (!renderer->drawFrame())
+        {
+            fprintf(stderr, "drawFrame() call failed.\n");
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
     }
 }
 

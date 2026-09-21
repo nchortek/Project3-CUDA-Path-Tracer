@@ -13,6 +13,7 @@ class Renderer
 {
 public:
     static constexpr uint32_t kFramesInFlight = 2;
+    static constexpr uint64_t kMaxTimeout = UINT64_MAX;
 
     Renderer() = default;
     ~Renderer()
@@ -29,7 +30,7 @@ public:
 
     bool init(VulkanContext& context, Swapchain& swapchain, uint32_t width, uint32_t height);
     void destroy();
-    void drawFrame();
+    bool drawFrame();
 
 private:
     VulkanContext* m_context = nullptr;
@@ -71,7 +72,7 @@ private:
     bool createStorageImage(VkFormat format, VkImageUsageFlags usage, StorageImage& storageImage);
     void destroyStorageImage(StorageImage& storageImage);
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
+    bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 
     static void recordImageBarrier(
         VkCommandBuffer commandBuffer,

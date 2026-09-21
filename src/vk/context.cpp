@@ -59,6 +59,7 @@ bool VulkanContext::initInstance(bool enableValidation)
         .set_app_name("CIS565 Path Tracer")
         .require_api_version(1, 3, 0)
         .request_validation_layers(enableValidation)
+        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
         .use_default_debug_messenger()
         .build();
 
@@ -170,6 +171,19 @@ bool VulkanContext::initLogicalDevice(const vkb::PhysicalDevice& physicalDevice)
     }
 
     m_graphicsQueueFamily = queueIndexResult.value();
+
+    VkBool32 presentSupported = VK_FALSE;
+    vkGetPhysicalDeviceSurfaceSupportKHR(
+        getPhysicalDevice(),
+        m_graphicsQueueFamily,
+        m_surface,
+        &presentSupported);
+
+    if (!presentSupported)
+    {
+        fprintf(stderr, "Graphics queue family cannot present to this surface.\n");
+        return false;
+    }
 
     return true;
 }
