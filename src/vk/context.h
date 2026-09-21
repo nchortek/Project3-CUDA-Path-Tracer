@@ -18,19 +18,22 @@ struct GLFWwindow;
 class VulkanContext
 {
 public:
+    VulkanContext() = default;
+
+    ~VulkanContext()
+    {
+        destroy();
+    }
+
     // VulkanContext should be created once and passed by reference as needed,
-    // so we should prevent copies from being made.
+    // so we should disable copies/moves
     VulkanContext(const VulkanContext&) = delete;
     VulkanContext& operator=(const VulkanContext&) = delete;
+    VulkanContext(VulkanContext&&) = delete;
+    VulkanContext& operator=(VulkanContext&&) = delete;
 
     bool init(GLFWwindow* window, bool enableValidation = true);
     void destroy();
-
-    // Ray tracing / SER support, queried at init
-    bool supportsRayTracing() const
-    {
-        return m_rayTracingSupported;
-    }
 
     bool supportsSER() const
     {
@@ -39,22 +42,17 @@ public:
 
     VkInstance getInstance() const
     {
-        return m_instance;
-    }
-
-    VkSurfaceKHR getSurface() const
-    {
-        return m_surface;
+        return m_vkbInstance.instance;
     }
 
     VkPhysicalDevice getPhysicalDevice() const
     {
-        return m_physicalDevice;
+        return m_vkbDevice.physical_device;
     }
 
     VkDevice getDevice() const
     {
-        return m_device;
+        return m_vkbDevice.device;
     }
 
     VkQueue getGraphicsQueue() const
@@ -90,16 +88,23 @@ private:
     vkb::Instance m_vkbInstance{};
     vkb::Device m_vkbDevice{};
 
-    VkInstance m_instance = VK_NULL_HANDLE;
     VkSurfaceKHR m_surface = VK_NULL_HANDLE;
-    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
-    VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_graphicsQueue = VK_NULL_HANDLE;
     uint32_t m_graphicsQueueFamily = 0;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 
+    VkPhysicalDeviceProperties m_deviceProperties{};
+    VkPhysicalDeviceDriverProperties m_driverProperties{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{};
+    VkRayTracingInvocationReorderModeNV m_serReorderMode = VK_RAY_TRACING_INVOCATION_REORDER_MODE_NONE_NV;
 
-    bool m_rayTracingSupported = false;
     bool m_serSupported = false;
+
+    bool initInstance(bool enableValidation);
+    bool initSurface(GLFWwindow* window);
+    bool initPhysicalDevice(vkb::PhysicalDevice& physicalDevice);
+    bool initLogicalDevice(const vkb::PhysicalDevice& physicalDevice);
+    bool initVmaAllocator();
+    bool initDeviceProperties();
+    void printDeviceReport() const;
 };

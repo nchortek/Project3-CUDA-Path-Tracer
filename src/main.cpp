@@ -11,11 +11,15 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
 
+#include "vk/context.h"
+#include "vk/swapchain.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -42,13 +46,19 @@ int iteration;
 int width;
 int height;
 
+std::unique_ptr<VulkanContext> context;
+std::unique_ptr<Swapchain> swapchain;
+
 GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
 // Forward declarations for window loop and interactivity
+bool initGLFW();
 void updateCameraAndRender();
+void cleanup();
+void errorCallback(int error, const char* description);
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -66,12 +76,7 @@ std::string currentTimeString()
 //----------SETUP STUFF----------
 //-------------------------------
 
-void errorCallback(int error, const char* description)
-{
-    fprintf(stderr, "%s\n", description);
-}
-
-bool init()
+bool initGLFW()
 {
     glfwSetErrorCallback(errorCallback);
 
@@ -104,10 +109,40 @@ bool init()
     glfwSetCursorPosCallback(window, mousePositionCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
+    return true;
+}
+
+void errorCallback(int error, const char* description)
+{
+    fprintf(stderr, "%s\n", description);
+}
+
+bool init()
+{
+    if (!initGLFW())
+    {
+        return false;
+    }
+
     // NCHORTEK TODO: print vulkan version instead?
     //printf("Opengl Version:%s\n", glGetString(GL_VERSION));
 
-    // NCHORTEK TODO: create and init() VulkanContext and Swapchain
+    // Initialize VulkanContext and Swapchain
+    context = std::make_unique<VulkanContext>();
+    
+    if (!context->init(window))
+    {
+        fprintf(stderr, "Failed to initialize VulkanContext\n");
+        return false;
+    }
+
+    swapchain = std::make_unique<Swapchain>();
+    
+    if (!swapchain->init(*context, width, height))
+    {
+        fprintf(stderr, "Failed to initialize Swapchain\n");
+        return false;
+    }
     
     //Set up ImGui
     IMGUI_CHECKVERSION();
@@ -191,10 +226,21 @@ void mainLoop()
         // - queue submit
         // - queue present
     }
+}
 
+void cleanup()
+{
+    if (context)
+    {
+        vkDeviceWaitIdle(context->getDevice());
+    }
+    
     //ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    swapchain.reset();
+    context.reset();
 
     glfwDestroyWindow(window);
     glfwTerminate();
@@ -259,6 +305,7 @@ int main(int argc, char** argv)
 
     // GLFW main loop
     mainLoop();
+    cleanup();
 
     return 0;
 }
@@ -345,7 +392,7 @@ void updateCameraAndRender()
         saveImage();
         //pathtraceFree();
         //cudaDeviceReset();
-        exit(EXIT_SUCCESS);
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 }
 

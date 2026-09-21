@@ -5,6 +5,7 @@
 // VK_ERROR_OUT_OF_DATE_KHR.
 
 #include <volk.h>
+#include <VkBootstrap.h>
 
 #include <vector>
 
@@ -13,24 +14,39 @@ class VulkanContext;
 class Swapchain
 {
 public:
+    Swapchain() = default;
+
+    ~Swapchain()
+    {
+        destroy();
+    }
+
+    // Swapchain should be created once and passed by reference as needed,
+    // so we should disable copies/moves
+    Swapchain(const Swapchain&) = delete;
+    Swapchain& operator=(const Swapchain&) = delete;
+    Swapchain(Swapchain&&) = delete;
+    Swapchain& operator=(Swapchain&&) = delete;
+
     bool init(VulkanContext& context, uint32_t width, uint32_t height);
     bool recreate(uint32_t width, uint32_t height);
     void destroy();
+    void cleanupPerImageResources();
 
     VkSwapchainKHR getHandle() const
     {
-	    return m_swapchain;
+	    return m_vkbSwapchain.swapchain;
     }
 
-    // This should be UNORM--gamma is applied in raygen
     VkFormat getFormat() const
     {
-	    return m_format;
+        // This should be UNORM--gamma is applied in raygen
+	    return m_vkbSwapchain.image_format;
     }
 
     VkExtent2D getExtent() const
     {
-	    return m_extent;
+	    return m_vkbSwapchain.extent;
     }
 
     uint32_t getImageCount() const
@@ -40,20 +56,27 @@ public:
 
     VkImage getImage(uint32_t idx) const
     {
-        return m_images[idx];
+        return m_images.at(idx);
     }
 
     VkImageView getImageView(uint32_t idx) const
     {
-        return m_imageViews[idx];
+        return m_imageViews.at(idx);
+    }
+
+    const std::vector<VkImage>& getImages() const
+    {
+        return m_images;
+    }
+
+    const std::vector<VkImageView>& getImageViews() const
+    {
+        return m_imageViews;
     }
 
 private:
     VulkanContext* m_context = nullptr;
-
-    VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
-    VkFormat m_format = VK_FORMAT_UNDEFINED;
-    VkExtent2D m_extent{};
+    vkb::Swapchain m_vkbSwapchain{};
 
     std::vector<VkImage> m_images;
     std::vector<VkImageView> m_imageViews;
