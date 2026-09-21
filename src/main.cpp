@@ -12,6 +12,7 @@
 #include "imgui_impl_vulkan.h"
 
 #include "vk/context.h"
+#include "vk/renderer.h"
 #include "vk/swapchain.h"
 
 #include <cstdio>
@@ -48,6 +49,7 @@ int height;
 
 std::unique_ptr<VulkanContext> context;
 std::unique_ptr<Swapchain> swapchain;
+std::unique_ptr<Renderer> renderer;
 
 GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
@@ -124,10 +126,7 @@ bool init()
         return false;
     }
 
-    // NCHORTEK TODO: print vulkan version instead?
-    //printf("Opengl Version:%s\n", glGetString(GL_VERSION));
-
-    // Initialize VulkanContext and Swapchain
+    // Initialize VulkanContext
     context = std::make_unique<VulkanContext>();
     
     if (!context->init(window))
@@ -136,11 +135,21 @@ bool init()
         return false;
     }
 
+    // Initialize Swapchain
     swapchain = std::make_unique<Swapchain>();
     
     if (!swapchain->init(*context, width, height))
     {
         fprintf(stderr, "Failed to initialize Swapchain\n");
+        return false;
+    }
+
+    // Initialize Renderer
+    renderer = std::make_unique<Renderer>();
+
+    if (!renderer->init(*context, *swapchain, width, height))
+    {
+        fprintf(stderr, "Failed to initialize Renderer\n");
         return false;
     }
     
@@ -239,6 +248,7 @@ void cleanup()
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    renderer.reset();
     swapchain.reset();
     context.reset();
 
