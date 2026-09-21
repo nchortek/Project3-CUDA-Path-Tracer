@@ -17,17 +17,21 @@ void Swapchain::cleanupPerImageResources()
         return;
     }
 
-    // Destroy image views
+    // Destroy image views and semaphores
     if (VkDevice device = m_context->getDevice(); device != VK_NULL_HANDLE)
     {
         for (VkImageView imgView : m_imageViews)
         {
             vkDestroyImageView(device, imgView, nullptr);
         }
+
+        for (VkSemaphore semaphore : m_renderFinishedSemaphores)
+        {
+            vkDestroySemaphore(device, semaphore, nullptr);
+        }
     }
 
-    // NCHORTEK TODO: Later we'll need to clean up per-image semaphores
-
+    m_renderFinishedSemaphores.clear();
     m_imageViews.clear();
     m_images.clear();
 }
@@ -90,6 +94,13 @@ bool Swapchain::recreate(uint32_t width, uint32_t height)
 
     m_imageViews = std::move(viewsResult.value());
 
+    if (!createRenderFinishedSemaphores())
+    {
+        fprintf(stderr, "Failed to create render finished semaphores.\n");
+        destroy();
+        return false;
+    }
+
     return true;
 }
 
@@ -99,4 +110,26 @@ void Swapchain::destroy()
     cleanupPerImageResources();
     vkb::destroy_swapchain(m_vkbSwapchain);
     m_vkbSwapchain = {};
+}
+
+bool Swapchain::createRenderFinishedSemaphores()
+{
+    m_renderFinishedSemaphores.clear();
+
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    size_t swapChainSize = m_images.size();
+    m_renderFinishedSemaphores.resize(swapChainSize);
+
+    for (size_t i = 0; i < swapChainSize; i++)
+    {
+        if (vkCreateSemaphore(m_context->getDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores.at(i))
+            != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }

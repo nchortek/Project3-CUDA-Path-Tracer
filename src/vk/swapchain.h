@@ -7,6 +7,7 @@
 #include <volk.h>
 #include <VkBootstrap.h>
 
+#include <cstdint>
 #include <vector>
 
 class VulkanContext;
@@ -31,7 +32,6 @@ public:
     bool init(VulkanContext& context, uint32_t width, uint32_t height);
     bool recreate(uint32_t width, uint32_t height);
     void destroy();
-    void cleanupPerImageResources();
 
     VkSwapchainKHR getHandle() const
     {
@@ -40,7 +40,6 @@ public:
 
     VkFormat getFormat() const
     {
-        // This should be UNORM--gamma is applied in raygen
 	    return m_vkbSwapchain.image_format;
     }
 
@@ -74,10 +73,19 @@ public:
         return m_imageViews;
     }
 
+    VkSemaphore getRenderFinishedSemaphore(uint32_t imageIndex) const
+    {
+        return m_renderFinishedSemaphores.at(imageIndex);
+    }
+
 private:
     VulkanContext* m_context = nullptr;
     vkb::Swapchain m_vkbSwapchain{};
 
     std::vector<VkImage> m_images;
     std::vector<VkImageView> m_imageViews;
+    std::vector<VkSemaphore> m_renderFinishedSemaphores;
+
+    bool createRenderFinishedSemaphores();
+    void cleanupPerImageResources();
 };

@@ -98,6 +98,7 @@ set(headers
     src/utilities.h
     src/vk/context.h
     src/vk/swapchain.h
+    src/vk/renderer.h
 )
 
 set(sources
@@ -109,6 +110,7 @@ set(sources
     src/vk/context.cpp
     src/vk/swapchain.cpp
     src/vk/vma_impl.cpp
+    src/vk/renderer.cpp
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
