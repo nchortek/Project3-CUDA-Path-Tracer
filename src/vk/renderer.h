@@ -40,8 +40,8 @@ private:
     struct FrameData
     {
         VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-        VkSemaphore imageAvailable = VK_NULL_HANDLE;
-        VkFence inFlight = VK_NULL_HANDLE;
+        VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+        VkFence inFlightFence = VK_NULL_HANDLE;
     };
 
     std::array<FrameData, kFramesInFlight> m_frames{};
@@ -65,7 +65,7 @@ private:
     bool createCommandPool();
     bool createCommandBuffers();
     bool createSyncObjects();
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+    bool createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, VkImageView& imageView);
 
     bool createStorageImages();
     bool createStorageImage(VkFormat format, VkImageUsageFlags usage, StorageImage& storageImage);
