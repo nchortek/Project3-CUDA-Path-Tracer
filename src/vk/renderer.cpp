@@ -174,6 +174,7 @@ bool Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlag
     if (vkCreateImageView(m_context->getDevice(), &createInfo, nullptr, &imageView)
         != VK_SUCCESS)
     {
+        imageView = VK_NULL_HANDLE;
         fprintf(stderr, "Failed to create image view.\n");
         return false;
     }
