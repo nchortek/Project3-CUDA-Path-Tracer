@@ -48,6 +48,26 @@ public:
         return m_pipeline;
     }
 
+    const VkStridedDeviceAddressRegionKHR& getRaygenDeviceAddrRegion() const
+    {
+        return m_raygenDeviceAddrRegion;
+    }
+
+    const VkStridedDeviceAddressRegionKHR& getMissDeviceAddrRegion() const
+    {
+        return m_missDeviceAddrRegion;
+    }
+
+    const VkStridedDeviceAddressRegionKHR& getHitDeviceAddrRegion() const
+    {
+        return m_hitDeviceAddrRegion;
+    }
+
+    const VkStridedDeviceAddressRegionKHR& getCallableDeviceAddrRegion() const
+    {
+        return m_callableDeviceAddrRegion;
+    }
+
 private:
     // Absolute SPIR-V output directory, set by CMake on-build
     static constexpr const char* kShaderDirectoryPath = SHADER_DIR;

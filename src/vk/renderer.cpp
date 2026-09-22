@@ -3,6 +3,8 @@
 #include "context.h"
 #include "swapchain.h"
 
+#include "gpu/shared.h"
+
 #include <array>
 #include <cstdio>
 
@@ -45,6 +47,18 @@ bool Renderer::init(VulkanContext& context, Swapchain& swapchain, uint32_t width
         return false;
     }
 
+    if (!createDescriptorPool())
+    {
+        destroy();
+        return false;
+    }
+
+    if (!createRendererDescriptorSet())
+    {
+        destroy();
+        return false;
+    }
+
     return true;
 }
 
@@ -79,6 +93,10 @@ void Renderer::destroy()
 
     vkDestroyCommandPool(device, m_commandPool, nullptr);
     m_commandPool = VK_NULL_HANDLE;
+
+    vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+    m_descriptorPool = VK_NULL_HANDLE;
+    m_rendererDescriptorSet = VK_NULL_HANDLE;
 
     m_frames = {};
     m_frameInFlight = 0;
@@ -476,6 +494,79 @@ bool Renderer::createStorageImages()
     return true;
 }
 
+bool Renderer::createDescriptorPool()
+{
+    // NCHORTEK TODO: This will need to be expanded to include the TLAS later
+    // One pool size per descriptor type, counting descriptors across all sets:
+    // the accumulation image and the display image
+    std::array<VkDescriptorPoolSize, 1> poolSizes{};
+    poolSizes.at(0).type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    poolSizes.at(0).descriptorCount = 2;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = 1;
+
+    if (vkCreateDescriptorPool(m_context->getDevice(), &poolInfo, nullptr, &m_descriptorPool)
+        != VK_SUCCESS)
+    {
+        m_descriptorPool = VK_NULL_HANDLE;
+        fprintf(stderr, "Failed to create descriptor pool.\n");
+        return false;
+    }
+
+    return true;
+}
+
+bool Renderer::createRendererDescriptorSet()
+{
+    VkDevice device = m_context->getDevice();
+    VkDescriptorSetLayout layout = m_pipeline.getRendererDescriptorSetLayout();
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &layout;
+
+    if (vkAllocateDescriptorSets(device, &allocInfo, &m_rendererDescriptorSet)
+        != VK_SUCCESS)
+    {
+        m_rendererDescriptorSet = VK_NULL_HANDLE;
+        fprintf(stderr, "Failed to allocate descriptor sets.\n");
+        return false;
+    }
+
+    VkDescriptorImageInfo accumImageInfo{};
+    accumImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    accumImageInfo.imageView = m_accumImage.imageView;
+
+    VkDescriptorImageInfo displayImageInfo{};
+    displayImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    displayImageInfo.imageView = m_displayImage.imageView;
+
+    std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet = m_rendererDescriptorSet;
+    descriptorWrites[0].dstBinding = gpu::kAccumImageBinding;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pImageInfo = &accumImageInfo;
+
+    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].dstSet = m_rendererDescriptorSet;
+    descriptorWrites[1].dstBinding = gpu::kDisplayImageBinding;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pImageInfo = &displayImageInfo;
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    return true;
+}
+
 bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex)
 {
     VkCommandBufferBeginInfo beginInfo{};
@@ -495,12 +586,10 @@ bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapc
         return false;
     }
 
-    const VkImage swapchainImage = m_swapchain->getImage(swapchainImageIndex);
-    const VkExtent2D swapchainExtent = m_swapchain->getExtent();
-    const VkImageSubresourceRange colorRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-    // Ensure that we do not clear the display image until the previous frame's blit
-    // has finished reading it
+    // Ensure that raygen does not write to the display image
+    // until the previous frame's blit has finished reading it
+    // NCHORTEK TODO: Once we start using the accumulation image too we'll
+    // need a barrier for that as well
     recordImageBarrier(
         commandBuffer,
         m_displayImage.image,
@@ -508,33 +597,63 @@ bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapc
         VK_IMAGE_LAYOUT_GENERAL,
         VK_PIPELINE_STAGE_2_BLIT_BIT,
         VK_ACCESS_2_NONE,
-        VK_PIPELINE_STAGE_2_CLEAR_BIT,
-        VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT);
 
-    // Clear the display image to debug magenta
-    const VkClearColorValue clearColor{
-        {
-            1.0f, 0.0f, 1.0f, 1.0f
-        }
-    };
-    vkCmdClearColorImage(
+    // Specify which pipeline to use
+    vkCmdBindPipeline(
         commandBuffer,
-        m_displayImage.image,
-        VK_IMAGE_LAYOUT_GENERAL,
-        &clearColor,
-        1,
-        &colorRange);
+        VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+        m_pipeline.getHandle());
 
-    // Ensure that the display image clear writes finish before the blit reads them
+    // Specify which descriptor sets to use
+    vkCmdBindDescriptorSets(
+        commandBuffer,
+        VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+        m_pipeline.getPipelineLayout(),
+        gpu::kRendererDescriptorSet,
+        1,
+        &m_rendererDescriptorSet,
+        0,
+        nullptr);
+
+    // NCHORTEK TODO: We'll need to actually increment this later
+    // Update our push constants
+    gpu::PushConstants pushConstants{};
+    pushConstants.renderedFrameCount = 0;
+
+    vkCmdPushConstants(
+        commandBuffer,
+        m_pipeline.getPipelineLayout(),
+        Pipeline::kPushConstantStages,
+        0,
+        sizeof(pushConstants),
+        &pushConstants);
+
+    // Trace those rays!
+    vkCmdTraceRaysKHR(
+        commandBuffer,
+        &m_pipeline.getRaygenDeviceAddrRegion(),
+        &m_pipeline.getMissDeviceAddrRegion(),
+        &m_pipeline.getHitDeviceAddrRegion(),
+        &m_pipeline.getCallableDeviceAddrRegion(),
+        m_renderExtent.width,
+        m_renderExtent.height,
+        1);
+
+    // Ensure that raygen's display image writes finish before the blit reads them
     recordImageBarrier(
         commandBuffer,
         m_displayImage.image,
         VK_IMAGE_LAYOUT_GENERAL,
         VK_IMAGE_LAYOUT_GENERAL,
-        VK_PIPELINE_STAGE_2_CLEAR_BIT,
-        VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
         VK_PIPELINE_STAGE_2_BLIT_BIT,
         VK_ACCESS_2_TRANSFER_READ_BIT);
+
+    const VkImage swapchainImage = m_swapchain->getImage(swapchainImageIndex);
+    const VkExtent2D swapchainExtent = m_swapchain->getExtent();
 
     // Ensure that the swapchain image transitions to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     // and that the transition occurs after the submit's blit-stage wait on the imageAvailable 

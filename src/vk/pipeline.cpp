@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -269,8 +270,10 @@ bool Pipeline::createShaderBindingTable()
     // Each region must also start at a multiple of baseAlignment.
     const VkDeviceSize recordStride = alignUp(handleSize, handleAlignment);
 
+    // For each region we compute its offset (in bytes) within the SBT buffer we are going to create
     // NCHORTEK TODO: offset computation may need to be updated if additional shader records
-    // are added to our shader groups
+    // are added to our shader groups (adding a single recordStride assumes each region only
+    // contains a single record).
     const VkDeviceSize raygenOffset = 0;
     const VkDeviceSize missOffset = alignUp(raygenOffset + recordStride, baseAlignment);
     const VkDeviceSize hitOffset = alignUp(missOffset + recordStride, baseAlignment);
@@ -285,6 +288,8 @@ bool Pipeline::createShaderBindingTable()
 
     // Allocate host-writable memory with persistently mapped, so the handles can
     // be written directly
+    // NCHORTEK TODO: Double check that using host-visible mapped memory for our buffer
+    // doesn't negatively impact performance during GPU/shader access of the SBT
     VmaAllocationCreateInfo allocCreateInfo{};
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
@@ -318,6 +323,7 @@ bool Pipeline::createShaderBindingTable()
     memcpy(sbtData + hitOffset, handles.data() + kClosestHitGroupIdx * handleSize, handleSize);
 
     // Make the writes visible to the device in case the memory isn't host-coherent
+    // (host-coherent memory is already GPU-visible, so it'd be a no-op in that case)
     if (vmaFlushAllocation(allocator, m_sbtAllocation, 0, VK_WHOLE_SIZE) != VK_SUCCESS)
     {
         fprintf(stderr, "Failed to flush shader binding table memory.\n");

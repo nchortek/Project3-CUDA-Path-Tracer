@@ -63,6 +63,9 @@ private:
     StorageImage m_displayImage{};
     VkExtent2D m_renderExtent{};
 
+    VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet m_rendererDescriptorSet = VK_NULL_HANDLE;
+
     VkCommandBuffer beginSingleTimeCommands();
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
@@ -74,6 +77,9 @@ private:
     bool createStorageImages();
     bool createStorageImage(VkFormat format, VkImageUsageFlags usage, StorageImage& storageImage);
     void destroyStorageImage(StorageImage& storageImage);
+
+    bool createDescriptorPool();
+    bool createRendererDescriptorSet();
 
     bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 

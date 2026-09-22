@@ -14,5 +14,12 @@ layout(push_constant, scalar) uniform PushConstantBlock
 
 void main()
 {
-    // NCHORTEK TODO
+    // NCHORTEK NOTE: gl_LaunchIDEXT (0,0) is the top-left image pixel,
+    // and +y increases down the screen, so we'll probably need to flip y
+    // somewhere if our camera math assumes +y is up.
+
+    // We add an offset of 0.5 to place the uv in the center of each pixel,
+    // and dividing by gl_LaunchSizeEXT brings the final uv to [0, 1]
+    const vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+    imageStore(displayImage, ivec2(gl_LaunchIDEXT.xy), vec4(uv, 0.0, 1.0));
 }

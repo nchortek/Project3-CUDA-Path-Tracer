@@ -11,3 +11,16 @@ CUDA Path Tracer
 *DO NOT* leave the README to the last minute! It is a crucial part of the
 project, and we will not be able to grade you without a good README.
 
+## References
+
+### Articles
+
+https://www.willusher.io/graphics/2019/11/20/the-sbt-three-ways/
+
+https://developer.nvidia.com/blog/vulkan-raytracing/
+
+### Tutorials
+
+https://vulkan-tutorial.com/
+
+https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/tutorial/
