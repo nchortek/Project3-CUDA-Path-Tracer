@@ -10,12 +10,18 @@
 
 #include <VkBootstrap.h>
 
-bool Renderer::init(VulkanContext& context, Swapchain& swapchain, uint32_t width, uint32_t height)
+bool Renderer::init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height)
 {
     m_context = &context;
     m_swapchain = &swapchain;
     m_renderExtent.width = width;
     m_renderExtent.height = height;
+
+    if (!m_gui.init(context, swapchain, window))
+    {
+        destroy();
+        return false;
+    }
 
     if (!m_pipeline.init(context))
     {
@@ -101,6 +107,7 @@ void Renderer::destroy()
     m_frames = {};
     m_frameInFlight = 0;
     m_pipeline.destroy();
+    m_gui.destroy();
     m_swapchain = nullptr;
     m_context = nullptr;
 }
@@ -696,14 +703,31 @@ bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapc
         &imageBlit,
         VK_FILTER_NEAREST);
 
-    // Transition the swapchain image into presentation layout after the blit writes are visible
+    // Transition the swapchain image into color attachment layout after the blit
+    // writes are visible so ImGui can draw on top of it
     recordImageBarrier(
         commandBuffer,
         swapchainImage,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_PIPELINE_STAGE_2_BLIT_BIT,
         VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+
+    m_gui.recordDrawCommands(
+        commandBuffer,
+        m_swapchain->getImageView(swapchainImageIndex),
+        swapchainExtent);
+
+    // Transition into presentation layout once ImGui's writes are visible
+    recordImageBarrier(
+        commandBuffer,
+        swapchainImage,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
         VK_PIPELINE_STAGE_2_NONE,
         VK_ACCESS_2_NONE);
 

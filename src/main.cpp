@@ -8,8 +8,6 @@
 
 #include <GLFW/glfw3.h>
 #include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
 
 #include "vk/context.h"
 #include "vk/renderer.h"
@@ -53,8 +51,6 @@ std::unique_ptr<Renderer> renderer;
 
 GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
-ImGuiIO* io = nullptr;
-bool mouseOverImGuiWinow = false;
 
 // Forward declarations for window loop and interactivity
 bool initGLFW();
@@ -147,22 +143,12 @@ bool init()
     // Initialize Renderer
     renderer = std::make_unique<Renderer>();
 
-    if (!renderer->init(*context, *swapchain, width, height))
+    if (!renderer->init(*context, *swapchain, window, width, height))
     {
         fprintf(stderr, "Failed to initialize Renderer\n");
         return false;
     }
     
-    //Set up ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    io = &ImGui::GetIO(); (void)io;
-    ImGui::StyleColorsLight();
-    ImGui_ImplGlfw_InitForVulkan(window, true);
-    // NCHORTEK TODO: fill out ImGui_ImplVulkan_InitInfo struct
-    //ImGui_ImplVulkan_InitInfo imguiVkInitInfo{};
-    //ImGui_ImplVulkan_Init(&imguiVkInitInfo);
-
     return true;
 }
 
@@ -174,21 +160,17 @@ void InitImguiData(GuiDataContainer* guiData)
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
 {
-    mouseOverImGuiWinow = io->WantCaptureMouse;
+    Gui& gui = renderer->getGui();
+    gui.beginFrame();
 
-    //ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    static float f = 0.0f;
-    static int counter = 0;
-
-    ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("Path Tracer Analytics");
     
     // LOOK: Un-Comment to check the output window and usage
+    //bool show_demo_window = true;
+    //bool show_another_window = false;
+    //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    //static float f = 0.0f;
+    //static int counter = 0;
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
     //ImGui::Checkbox("Another Window", &show_another_window);
@@ -204,14 +186,7 @@ void RenderImGui()
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
 
-    ImGui::Render();
-    // NCHORTEK TODO: This needs a command buffer and pipeline
-    //ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData());
-}
-
-bool MouseOverImGuiWindow()
-{
-    return mouseOverImGuiWinow;
+    gui.renderFrame();
 }
 
 void mainLoop()
@@ -236,8 +211,7 @@ void mainLoop()
         glfwSetWindowTitle(window, title.c_str());
 
         // Render ImGui Stuff
-        // NCHORTEK TODO
-        // RenderImGui();
+        RenderImGui();
 
         if (!renderer->drawFrame())
         {
@@ -254,10 +228,6 @@ void cleanup()
         vkDeviceWaitIdle(context->getDevice());
     }
     
-    //ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
     renderer.reset();
     swapchain.reset();
     context.reset();
@@ -445,7 +415,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    if (MouseOverImGuiWindow())
+    if (renderer->getGui().wantsMouse())
     {
         return;
     }

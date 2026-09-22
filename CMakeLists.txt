@@ -101,6 +101,7 @@ set(headers
     src/vk/swapchain.h
     src/vk/renderer.h
     src/vk/pipeline.h
+    src/vk/gui.h
 )
 
 set(sources
@@ -114,6 +115,7 @@ set(sources
     src/vk/vma_impl.cpp
     src/vk/renderer.cpp
     src/vk/pipeline.cpp
+    src/vk/gui.cpp
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})

@@ -3,11 +3,13 @@
 #include <volk.h>
 #include <vk_mem_alloc.h>
 
+#include "gui.h"
 #include "pipeline.h"
 
 #include <array>
 #include <cstdint>
 
+struct GLFWwindow;
 class VulkanContext;
 class Swapchain;
 
@@ -27,9 +29,14 @@ public:
     Renderer(Renderer&&) = delete;
     Renderer& operator=(Renderer&&) = delete;
 
-    bool init(VulkanContext& context, Swapchain& swapchain, uint32_t width, uint32_t height);
+    bool init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height);
     void destroy();
     bool drawFrame();
+
+    Gui& getGui()
+    {
+        return m_gui;
+    }
 
 private:
     static constexpr uint32_t kFramesInFlight = 2;
@@ -38,6 +45,7 @@ private:
     VulkanContext* m_context = nullptr;
     Swapchain* m_swapchain = nullptr;
     Pipeline m_pipeline;
+    Gui m_gui;
 
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
 
