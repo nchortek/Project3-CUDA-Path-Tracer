@@ -3,6 +3,8 @@
 #include <volk.h>
 #include <vk_mem_alloc.h>
 
+#include "pipeline.h"
+
 #include <array>
 #include <cstdint>
 
@@ -35,6 +37,7 @@ public:
 private:
     VulkanContext* m_context = nullptr;
     Swapchain* m_swapchain = nullptr;
+    Pipeline m_pipeline;
 
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
 

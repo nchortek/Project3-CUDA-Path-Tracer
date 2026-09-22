@@ -15,6 +15,12 @@ bool Renderer::init(VulkanContext& context, Swapchain& swapchain, uint32_t width
     m_renderExtent.width = width;
     m_renderExtent.height = height;
 
+    if (!m_pipeline.init(context))
+    {
+        destroy();
+        return false;
+    }
+
     if (!createCommandPool())
     {
         destroy();
@@ -76,8 +82,9 @@ void Renderer::destroy()
 
     m_frames = {};
     m_frameInFlight = 0;
-    m_context = nullptr;
+    m_pipeline.destroy();
     m_swapchain = nullptr;
+    m_context = nullptr;
 }
 
 bool Renderer::drawFrame()
