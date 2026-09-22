@@ -240,7 +240,106 @@ bool Pipeline::createPipeline()
 
 bool Pipeline::createShaderBindingTable()
 {
-    // NCHORTEK TODO
+    VkDevice device = m_context->getDevice();
+    VmaAllocator allocator = m_context->getAllocator();
+    const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProperties = m_context->getRtProperties();
+
+    const uint32_t handleSize = rtProperties.shaderGroupHandleSize;
+    const uint32_t handleAlignment = rtProperties.shaderGroupHandleAlignment;
+    const uint32_t baseAlignment = rtProperties.shaderGroupBaseAlignment;
+
+    // Define a lambda that rounds a value up to the next multiple of alignment.
+    // Note that this only works because Vulkan guarantees alignment to be
+    // a power of two.
+    auto alignUp = [](VkDeviceSize value, VkDeviceSize alignment)
+    {
+        return (value + alignment - 1) & ~(alignment - 1);
+    };
+
+    std::vector<uint8_t> handles(kShaderGroupCount * handleSize);
+    if (vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, kShaderGroupCount, handles.size(), handles.data())
+        != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to get shader group handles.\n");
+        return false;
+    }
+
+    // Each region holds one or more records, and each record contains only a group
+    // handle, so the stride is the handle size rounded up to a multiple of handleAlignment.
+    // Each region must also start at a multiple of baseAlignment.
+    const VkDeviceSize recordStride = alignUp(handleSize, handleAlignment);
+
+    // NCHORTEK TODO: offset computation may need to be updated if additional shader records
+    // are added to our shader groups
+    const VkDeviceSize raygenOffset = 0;
+    const VkDeviceSize missOffset = alignUp(raygenOffset + recordStride, baseAlignment);
+    const VkDeviceSize hitOffset = alignUp(missOffset + recordStride, baseAlignment);
+    const VkDeviceSize bufferSize = hitOffset + recordStride;
+
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size = bufferSize;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR
+        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // Allocate host-writable memory with persistently mapped, so the handles can
+    // be written directly
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+        | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    // Every SBT region's address must be a multiple of baseAlignment, but a buffer is
+    // only guaranteed its own (possibly smaller) memory alignment. Each region's
+    // address is the buffer's base address plus an offset that's a multiple of
+    // baseAlignment (raygen's is 0), so aligning the buffer's allocation to
+    // baseAlignment makes every region address a multiple of baseAlignment too.
+    VmaAllocationInfo allocInfo{};
+    if (vmaCreateBufferWithAlignment(
+        allocator,
+        &bufferCreateInfo,
+        &allocCreateInfo,
+        baseAlignment,
+        &m_sbtBuffer,
+        &m_sbtAllocation,
+        &allocInfo) != VK_SUCCESS)
+    {
+        m_sbtBuffer = VK_NULL_HANDLE;
+        m_sbtAllocation = VK_NULL_HANDLE;
+        fprintf(stderr, "Failed to create shader binding table buffer.\n");
+        return false;
+    }
+
+    // Copy each group's handle into the record at the start of its region
+    uint8_t* sbtData = static_cast<uint8_t*>(allocInfo.pMappedData);
+    memcpy(sbtData + raygenOffset, handles.data() + kRaygenGroupIdx * handleSize, handleSize);
+    memcpy(sbtData + missOffset, handles.data() + kMissGroupIdx * handleSize, handleSize);
+    memcpy(sbtData + hitOffset, handles.data() + kClosestHitGroupIdx * handleSize, handleSize);
+
+    // Make the writes visible to the device in case the memory isn't host-coherent
+    if (vmaFlushAllocation(allocator, m_sbtAllocation, 0, VK_WHOLE_SIZE) != VK_SUCCESS)
+    {
+        fprintf(stderr, "Failed to flush shader binding table memory.\n");
+        return false;
+    }
+
+    VkBufferDeviceAddressInfo addressInfo{};
+    addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    addressInfo.buffer = m_sbtBuffer;
+    const VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(device, &addressInfo);
+
+    // VkStridedDeviceAddressRegionKHR = { deviceAddress, stride, size }
+    // The raygen region's size must equal its stride, because there can only ever be
+    // a single raygen shader.
+    m_raygenDeviceAddrRegion = { sbtAddress + raygenOffset, recordStride, recordStride };
+    m_missDeviceAddrRegion = { sbtAddress + missOffset, recordStride, recordStride };
+    m_hitDeviceAddrRegion = { sbtAddress + hitOffset, recordStride, recordStride };
+
+    // We dont have any callable shaders, so zero-out its device address region to
+    // indicate it is unused
+    m_callableDeviceAddrRegion = {};
+
     return true;
 }
 

@@ -3,6 +3,7 @@
 #include <volk.h>
 #include <vk_mem_alloc.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
