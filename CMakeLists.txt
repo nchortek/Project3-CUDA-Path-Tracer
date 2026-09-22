@@ -96,6 +96,7 @@ set(headers
     src/scene.h
     src/sceneStructs.h
     src/utilities.h
+    src/gpu/shared.h
     src/vk/context.h
     src/vk/swapchain.h
     src/vk/renderer.h
@@ -145,8 +146,8 @@ if(MSVC)
     set_source_files_properties(src/vk/vma_impl.cpp PROPERTIES COMPILE_OPTIONS "/w")
 endif()
 
-# Run from the source dir so relative scene/shader paths work, and pass a
-# default scene when launching with F5.
+# Run from the source dir so relative scene paths work, and pass a
+# default scene
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     VS_DEBUGGER_COMMAND_ARGUMENTS "scenes/cornell.json"
@@ -163,35 +164,52 @@ if(NOT Vulkan_GLSLC_EXECUTABLE)
 endif()
 
 set(SHADER_SRC_DIR ${CMAKE_SOURCE_DIR}/shaders)
-set(SHADER_OUT_DIR ${SHADER_SRC_DIR}/spv)
+
+# SPIR-V goes in the build tree, and its absolute path is compiled in as SHADER_DIR, so the
+# program finds its shaders regardless of the working directory
+set(SHADER_OUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 
 # List shader entry points (excluding files that are only #included, because glslc compiles them
-# as part of whatever shader actually includes them
+# as part of whatever shader actually includes them)
 set(shader_entry_points
-    # NCHORTEK TODO: add the RT shaders here (e.g. raygen)
+    raygen.rgen
+    miss.rmiss
+    mesh.rchit
 )
 
 if(shader_entry_points)
     file(MAKE_DIRECTORY ${SHADER_OUT_DIR})
     set(spv_outputs)
+    set(shader_sources)
     foreach(shader ${shader_entry_points})
         set(spv ${SHADER_OUT_DIR}/${shader}.spv)
+        set(dep ${SHADER_OUT_DIR}/${shader}.d)
+
+        # -I src: for #include "gpu/shared.h"
+        # -g (every configuration): lets Nsight Graphics map profiling data to GLSL source
+        # -MD/-MF/-MT: also writes a Makefile-style file listing every #included file; DEPFILE
+        # reruns this command when any of them changes, not just the entry point
         add_custom_command(
             OUTPUT ${spv}
             COMMAND ${Vulkan_GLSLC_EXECUTABLE}
                     --target-env=vulkan1.3
                     -I ${SHADER_SRC_DIR}
+                    -I ${CMAKE_SOURCE_DIR}/src
                     -g
+                    -MD -MF ${dep} -MT ${spv}
                     ${SHADER_SRC_DIR}/${shader}
                     -o ${spv}
             DEPENDS ${SHADER_SRC_DIR}/${shader}
+            DEPFILE ${dep}
             COMMENT "glslc ${shader}"
             VERBATIM
         )
         list(APPEND spv_outputs ${spv})
+        list(APPEND shader_sources ${SHADER_SRC_DIR}/${shader})
     endforeach()
 
-    add_custom_target(shaders DEPENDS ${spv_outputs} SOURCES ${shader_entry_points})
+    add_custom_target(shaders DEPENDS ${spv_outputs} SOURCES ${shader_sources})
     add_dependencies(${CMAKE_PROJECT_NAME} shaders)
     set_target_properties(shaders PROPERTIES FOLDER "shaders")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE SHADER_DIR="${SHADER_OUT_DIR}")
 endif()
