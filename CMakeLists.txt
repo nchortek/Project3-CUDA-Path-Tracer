@@ -142,8 +142,9 @@ if(MSVC)
     # enable parallel compilation
     target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /MP)
 
-    # Silence VMA warnings
+    # Silence third party build warnings
     set_source_files_properties(src/vk/vma_impl.cpp PROPERTIES COMPILE_OPTIONS "/w")
+    set_source_files_properties(src/stb.cpp PROPERTIES COMPILE_OPTIONS "/w")
 endif()
 
 # Run from the source dir so relative scene paths work, and pass a
