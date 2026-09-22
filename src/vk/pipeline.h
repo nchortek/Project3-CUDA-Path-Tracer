@@ -11,13 +11,9 @@ class VulkanContext;
 class Pipeline
 {
 public:
-    // Absolute SPIR-V output directory, set by CMake on-build
-    static constexpr const char* kShaderDirectoryPath = SHADER_DIR;
-
     // Every shader stage that will read push constants
     static constexpr VkShaderStageFlags kPushConstantStages =
         VK_SHADER_STAGE_RAYGEN_BIT_KHR
-        | VK_SHADER_STAGE_MISS_BIT_KHR
         | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
     Pipeline() = default;
@@ -52,6 +48,16 @@ public:
     }
 
 private:
+    // Absolute SPIR-V output directory, set by CMake on-build
+    static constexpr const char* kShaderDirectoryPath = SHADER_DIR;
+
+    // Shader group indices. Groups are created in this order, and the SBT copies
+    // each group's handle into the matching region.
+    static constexpr uint32_t kRaygenGroupIdx = 0;
+    static constexpr uint32_t kMissGroupIdx = 1;
+    static constexpr uint32_t kClosestHitGroupIdx = 2;
+    static constexpr uint32_t kShaderGroupCount = 3;
+
     VulkanContext* m_context = nullptr;
 
     VkDescriptorSetLayout m_rendererDescriptorSetLayout = VK_NULL_HANDLE;

@@ -140,8 +140,102 @@ bool Pipeline::createPipelineLayout()
 
 bool Pipeline::createPipeline()
 {
-    // NCHORTEK TODO
-    return true;
+    const uint32_t raygenStageIdx = 0;
+    const uint32_t missStageIdx = 1;
+    const uint32_t closestHitStageIdx = 2;
+    const uint32_t shaderStageCount = 3;
+
+    const std::array<VkShaderStageFlagBits, shaderStageCount> shaderStageFlags = {
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+        VK_SHADER_STAGE_MISS_BIT_KHR,
+        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+    };
+
+    const std::array<const char*, shaderStageCount> shaderStageFilenames = {
+        "raygen.rgen.spv",
+        "miss.rmiss.spv",
+        "mesh.rchit.spv"
+    };
+
+    std::array<VkShaderModule, shaderStageCount> shaderModules{};
+    std::array<VkPipelineShaderStageCreateInfo, shaderStageCount> shaderStages{};
+    VkDevice device = m_context->getDevice();
+
+    bool creationSuccessful = true;
+    for (uint32_t i = 0; i < shaderStageCount; i++)
+    {
+        const std::string path = std::string(kShaderDirectoryPath) + "/" + shaderStageFilenames.at(i);
+
+        std::vector<uint32_t> code;
+        creationSuccessful = readSpirvFile(path, code)
+            && createVkShaderModule(device, code, shaderModules.at(i));
+
+        if (!creationSuccessful)
+        {
+            break;
+        }
+
+        shaderStages.at(i).sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages.at(i).stage = shaderStageFlags.at(i);
+        shaderStages.at(i).module = shaderModules.at(i);
+        shaderStages.at(i).pName = "main";
+    }
+
+    if (creationSuccessful)
+    {
+        // We need to create one shader group per SBT record
+        std::array<VkRayTracingShaderGroupCreateInfoKHR, kShaderGroupCount> groupCreateInfos{};
+
+        // Explicitly label each shader as unused--we'll set them case-by-case afterwards
+        for (VkRayTracingShaderGroupCreateInfoKHR& groupCreateInfo : groupCreateInfos)
+        {
+            groupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+            groupCreateInfo.generalShader = VK_SHADER_UNUSED_KHR;
+            groupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+            groupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+            groupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+        }
+
+        // The raygen and miss shaders fall under the "general" group type, which indicates that
+        // the group contains exactly one shader that runs on its own
+        groupCreateInfos.at(kRaygenGroupIdx).type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+        groupCreateInfos.at(kRaygenGroupIdx).generalShader = raygenStageIdx;
+
+        groupCreateInfos.at(kMissGroupIdx).type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+        groupCreateInfos.at(kMissGroupIdx).generalShader = missStageIdx;
+
+        // The closest-hit shader falls under the "triangles hit" group type since we're using
+        // triangle geometry
+        groupCreateInfos.at(kClosestHitGroupIdx).type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+        groupCreateInfos.at(kClosestHitGroupIdx).closestHitShader = closestHitStageIdx;
+
+        VkRayTracingPipelineCreateInfoKHR pipelineCreateInfo{};
+        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+        pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+        pipelineCreateInfo.pStages = shaderStages.data();
+        pipelineCreateInfo.groupCount = static_cast<uint32_t>(groupCreateInfos.size());
+        pipelineCreateInfo.pGroups = groupCreateInfos.data();
+
+        // Raygen will exclusively handle ray bounces/iteration
+        pipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+        pipelineCreateInfo.layout = m_pipelineLayout;
+
+        if (vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &m_pipeline)
+            != VK_SUCCESS)
+        {
+            m_pipeline = VK_NULL_HANDLE;
+            fprintf(stderr, "Failed to create ray tracing pipeline.\n");
+            creationSuccessful = false;
+        }
+    }
+
+    // Shader modules aren't needed after pipeline creation, so delete them here
+    for (VkShaderModule shaderModule : shaderModules)
+    {
+        vkDestroyShaderModule(device, shaderModule, nullptr);
+    }
+
+    return creationSuccessful;
 }
 
 bool Pipeline::createShaderBindingTable()
@@ -168,7 +262,7 @@ bool Pipeline::readSpirvFile(const std::string& filename, std::vector<uint32_t>&
     const std::streamoff fileSize = file.tellg();
 
     // Valid SPIR-V is a stream of 32-bit words, so sanity check that the
-    // fileSize matches that expection.
+    // fileSize matches that expectation.
     if (fileSize <= 0 || static_cast<size_t>(fileSize) % sizeof(uint32_t) != 0)
     {
         fprintf(stderr, "Invalid SPIR-V file size (%lld bytes): %s\n",

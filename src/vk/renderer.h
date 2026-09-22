@@ -14,9 +14,6 @@ class Swapchain;
 class Renderer
 {
 public:
-    static constexpr uint32_t kFramesInFlight = 2;
-    static constexpr uint64_t kMaxTimeout = UINT64_MAX;
-
     Renderer() = default;
     ~Renderer()
     {
@@ -35,6 +32,9 @@ public:
     bool drawFrame();
 
 private:
+    static constexpr uint32_t kFramesInFlight = 2;
+    static constexpr uint64_t kMaxTimeout = UINT64_MAX;
+
     VulkanContext* m_context = nullptr;
     Swapchain* m_swapchain = nullptr;
     Pipeline m_pipeline;
