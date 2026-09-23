@@ -54,7 +54,7 @@ GuiDataContainer* imguiData = NULL;
 
 // Forward declarations for window loop and interactivity
 bool initGLFW();
-void updateCameraAndRender();
+void updateCamera();
 void cleanup();
 void errorCallback(int error, const char* description);
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -205,7 +205,7 @@ void mainLoop()
             continue;
         }
 
-        updateCameraAndRender();
+        updateCamera();
 
         std::string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
@@ -267,8 +267,6 @@ int main(int argc, char** argv)
 
     glm::vec3 view = cam.view;
     glm::vec3 up = cam.up;
-    glm::vec3 right = glm::cross(view, up);
-    up = glm::cross(right, view);
 
     cameraPosition = cam.position;
 
@@ -281,7 +279,7 @@ int main(int argc, char** argv)
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
-    // Initialize CUDA and GL components
+    // Initialize our rendering infrastructure
     if (!init())
     {
         // Initialization failed
@@ -318,7 +316,9 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+
+            // NCHORTEK TODO: this needs to be consistent with raygen ray direction calcs
+            img.setPixel(x, y, glm::vec3(pix) / samples);
         }
     }
 
@@ -332,12 +332,13 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-void updateCameraAndRender()
+void updateCamera()
 {
+    Camera& cam = renderState->camera;
+
     if (camchanged)
     {
         iteration = 0;
-        Camera& cam = renderState->camera;
         cameraPosition.x = zoom * sin(phi) * sin(theta);
         cameraPosition.y = zoom * cos(theta);
         cameraPosition.z = zoom * cos(phi) * sin(theta);
@@ -354,6 +355,14 @@ void updateCameraAndRender()
         cam.position = cameraPosition;
         camchanged = false;
     }
+
+    renderer->setCameraParams({
+        cam.position,
+        cam.view,
+        cam.right,
+        cam.up,
+        cam.pixelLength
+    });
 
     if (iteration == 0)
     {
@@ -427,7 +436,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
 {
-    if (xpos == lastX || ypos == lastY)
+    if (xpos == lastX && ypos == lastY)
     {
         return; // otherwise, clicking back into window causes re-start
     }

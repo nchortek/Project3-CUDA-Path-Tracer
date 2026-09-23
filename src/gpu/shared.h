@@ -24,7 +24,7 @@ GPU_NAMESPACE_END
 
 // Enable 64-bit integer types and scalar block layout (GLSL types
 // aligned to their component size, matching C++'s data layout).
-// The latter avoids standard GLSL padding, so a vec3 will actually be 4 bytes.
+// The latter avoids standard GLSL padding, so a vec3 will align to 4 bytes.
 // The former lets us use int64 in both GLSL and C++, which simplifies buffer
 // device address management.
 // 
@@ -48,11 +48,31 @@ GPU_CONST uint kTlasBinding = 0;
 GPU_CONST uint kAccumImageBinding = 1;
 GPU_CONST uint kDisplayImageBinding = 2;
 
+struct CameraParams
+{
+    vec3 position;
+    vec3 view;
+    vec3 right;
+    vec3 up;
+    vec2 pixelLength;
+};
+
+// Push constant limits are per-device, with 128 bytes guaranteed
+// by Vulkan.
+// Running total: 4 * vec3 (48) + 3 * uint (12) + vec2 (8) = 68.
 struct PushConstants
 {
+    CameraParams camera;
     uint renderedFrameCount;
+    uint maxDepth;
+    uint flags;
 };
 
 GPU_NAMESPACE_END
+
+#ifdef __cplusplus
+static_assert(sizeof(gpu::PushConstants) == 68,
+    "Cpp PushConstants size must match the GLSL scalar-layout block in shaders.");
+#endif
 
 #endif // GPU_SHARED_H

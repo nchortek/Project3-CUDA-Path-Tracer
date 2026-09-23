@@ -624,18 +624,14 @@ bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapc
         0,
         nullptr);
 
-    // NCHORTEK TODO: We'll need to actually increment this later
     // Update our push constants
-    gpu::PushConstants pushConstants{};
-    pushConstants.renderedFrameCount = 0;
-
     vkCmdPushConstants(
         commandBuffer,
         m_pipeline.getPipelineLayout(),
         Pipeline::kPushConstantStages,
         0,
-        sizeof(pushConstants),
-        &pushConstants);
+        sizeof(m_pushConstants),
+        &m_pushConstants);
 
     // Trace those rays!
     vkCmdTraceRaysKHR(

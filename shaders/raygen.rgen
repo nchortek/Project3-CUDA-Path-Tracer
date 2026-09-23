@@ -14,13 +14,17 @@ layout(push_constant, scalar) uniform PushConstantBlock
 
 void main()
 {
-    // NCHORTEK NOTE: gl_LaunchIDEXT (0,0) is the top-left image pixel,
+    // gl_LaunchIDEXT (0,0) is the top-left image pixel,
     // and +y increases down the screen.
-    // NCHORTEK TODO: sanity check that our xy axis here are aligned
-    // with any assumptions being made by our backend camera/saveImage functions
+    const vec2 pixel = vec2(gl_LaunchIDEXT.xy);
+    const vec2 halfResolution = vec2(gl_LaunchSizeEXT.xy) * 0.5;
 
-    // We add an offset of 0.5 to place the uv in the center of each pixel,
-    // and dividing by gl_LaunchSizeEXT brings the final uv to [0, 1]
-    const vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
-    imageStore(displayImage, ivec2(gl_LaunchIDEXT.xy), vec4(uv, 0.0, 1.0));
+    // NCHORTEK TODO: This needs to be consistent with saveImage pixel calcs
+    const vec3 direction = normalize(
+        pc.camera.view
+        + pc.camera.right * pc.camera.pixelLength.x * (pixel.x - halfResolution.x)
+        - pc.camera.up * pc.camera.pixelLength.y * (pixel.y - halfResolution.y));
+    
+    vec4 rayDirColor = vec4(direction * 0.5 + 0.5, 1.0);
+    imageStore(displayImage, ivec2(pixel), rayDirColor);
 }

@@ -5,6 +5,7 @@
 
 #include "gui.h"
 #include "pipeline.h"
+#include "gpu/shared.h"
 
 #include <array>
 #include <cstdint>
@@ -38,6 +39,11 @@ public:
         return m_gui;
     }
 
+    void setCameraParams(const gpu::CameraParams& camera)
+    {
+        m_pushConstants.camera = camera;
+    }
+
 private:
     static constexpr uint32_t kFramesInFlight = 2;
     static constexpr uint64_t kMaxTimeout = UINT64_MAX;
@@ -46,6 +52,8 @@ private:
     Swapchain* m_swapchain = nullptr;
     Pipeline m_pipeline;
     Gui m_gui;
+
+    gpu::PushConstants m_pushConstants{};
 
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
 
