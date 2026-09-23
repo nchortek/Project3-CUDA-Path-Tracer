@@ -104,6 +104,7 @@ set(headers
     src/vk/pipeline.h
     src/vk/gui.h
     src/vk/gpuscene.h
+    src/vk/utils/buffer.h
 )
 
 set(sources
@@ -119,6 +120,7 @@ set(sources
     src/vk/pipeline.cpp
     src/vk/gui.cpp
     src/vk/gpuscene.cpp
+    src/vk/utils/buffer.cpp
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
