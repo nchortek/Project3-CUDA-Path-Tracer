@@ -92,6 +92,7 @@ set_target_properties(volk vk-bootstrap imgui PROPERTIES FOLDER "external")
 #--------------------------------------------------------------------
 
 set(headers
+    src/icosphere.h
     src/image.h
     src/scene.h
     src/sceneStructs.h
@@ -102,6 +103,7 @@ set(headers
     src/vk/renderer.h
     src/vk/pipeline.h
     src/vk/gui.h
+    src/vk/gpuscene.h
 )
 
 set(sources
@@ -116,6 +118,7 @@ set(sources
     src/vk/renderer.cpp
     src/vk/pipeline.cpp
     src/vk/gui.cpp
+    src/vk/gpuscene.cpp
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
