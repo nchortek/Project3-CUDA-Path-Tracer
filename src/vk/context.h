@@ -1,8 +1,6 @@
 #pragma once
 
-// Owns the Vulkan objects that live for the whole run: instance, debug
-// messenger, surface, physical device, logical device, queue, and the VMA
-// allocator.
+// Owns the Vulkan objects that live for the whole run
 //
 // volk provides the function pointers, so VK_NO_PROTOTYPES must be defined
 // project-wide (it comes from the volk CMake target) and volk.h must be
@@ -34,6 +32,9 @@ public:
 
     bool init(GLFWwindow* window, bool enableValidation = true);
     void destroy();
+
+    VkCommandBuffer beginSingleTimeCommands();
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
     bool supportsSER() const
     {
@@ -84,6 +85,13 @@ public:
         return m_rtProperties;
     }
 
+    // Physical device acceleration structure properties hold driver-defined limits
+    // for building and updating BLAS and TLAS
+    const VkPhysicalDeviceAccelerationStructurePropertiesKHR& getAccelProperties() const
+    {
+        return m_accelStructProperties;
+    }
+
 private:
     vkb::Instance m_vkbInstance{};
     vkb::Device m_vkbDevice{};
@@ -92,19 +100,22 @@ private:
     VkQueue m_graphicsQueue = VK_NULL_HANDLE;
     uint32_t m_graphicsQueueFamily = 0;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
+    VkCommandPool m_singleTimeCommandPool = VK_NULL_HANDLE;
 
     VkPhysicalDeviceProperties m_deviceProperties{};
     VkPhysicalDeviceDriverProperties m_driverProperties{};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{};
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR m_accelStructProperties{};
     VkRayTracingInvocationReorderModeNV m_serReorderMode = VK_RAY_TRACING_INVOCATION_REORDER_MODE_NONE_NV;
 
     bool m_serSupported = false;
 
-    bool initInstance(bool enableValidation);
-    bool initSurface(GLFWwindow* window);
-    bool initPhysicalDevice(vkb::PhysicalDevice& physicalDevice);
-    bool initLogicalDevice(const vkb::PhysicalDevice& physicalDevice);
-    bool initVmaAllocator();
-    bool initDeviceProperties();
+    bool createInstance(bool enableValidation);
+    bool createSurface(GLFWwindow* window);
+    bool selectPhysicalDevice(vkb::PhysicalDevice& physicalDevice);
+    bool createLogicalDevice(const vkb::PhysicalDevice& physicalDevice);
+    bool createVmaAllocator();
+    bool createSingleTimeCommandPool();
+    bool queryDeviceProperties();
     void printDeviceReport() const;
 };

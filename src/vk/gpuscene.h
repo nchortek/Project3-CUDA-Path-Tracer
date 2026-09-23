@@ -1,5 +1,7 @@
 #pragma once
 
+#include <volk.h>
+
 class GpuScene
 {
 public:

@@ -82,9 +82,6 @@ private:
     VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet m_rendererDescriptorSet = VK_NULL_HANDLE;
 
-    VkCommandBuffer beginSingleTimeCommands();
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-
     bool createCommandPool();
     bool createCommandBuffers();
     bool createSyncObjects();
