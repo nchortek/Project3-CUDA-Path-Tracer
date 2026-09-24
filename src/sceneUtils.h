@@ -44,4 +44,5 @@ namespace sceneutil
 
     // Converts Scene --> FlatScene
     FlatScene flattenScene(const Scene& scene);
-}
+
+} // namespace sceneutil

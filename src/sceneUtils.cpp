@@ -95,4 +95,5 @@ namespace sceneutil
 
         return flatScene;
     }
-}
+
+} // namespace sceneutil
