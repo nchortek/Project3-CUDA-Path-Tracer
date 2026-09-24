@@ -40,6 +40,7 @@ namespace sceneutil
         // Indexed like [instanceIndex]
         // These values become each instance's InstanceCustomIndexKHR value
         std::vector<uint32_t> instanceFirstGeometry;
+        std::vector<MeshInstance> instances;
     };
 
     // Converts Scene --> FlatScene

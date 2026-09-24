@@ -2,6 +2,8 @@
 
 #include "context.h"
 
+#include <glm/gtc/type_ptr.hpp>
+
 bool GpuScene::init(VulkanContext& context, const sceneutil::FlatScene& flatScene)
 {
     m_context = &context;
@@ -133,7 +135,7 @@ bool GpuScene::createBLASes(const sceneutil::FlatScene& flatScene)
 {
     m_BLASes.resize(flatScene.meshRanges.size());
 
-    for (size_t meshIndex = 0; meshIndex < flatScene.meshRanges.size(); meshIndex++)
+    for (int meshIndex = 0; meshIndex < flatScene.meshRanges.size(); meshIndex++)
     {
         const std::vector<sceneutil::MeshPrimitiveRange>& primitiveRanges = flatScene.meshRanges.at(meshIndex);
 
@@ -201,7 +203,95 @@ bool GpuScene::createBLASes(const sceneutil::FlatScene& flatScene)
 
 bool GpuScene::createTLAS(const sceneutil::FlatScene& flatScene)
 {
-    // NCHORTEK TODO
+    // VkTransformMatrixKHR is row-major 3x4, but glm::mat4 is column-major.
+    // Transposing and copying sizeof(VkTransformMatrixKHR) drops the bottom row,
+    // which is what VkTransformMatrixKHR expects
+    auto toTransformMatrixKHR = [](const glm::mat4& matrix)
+    {
+        VkTransformMatrixKHR transform{};
+        const glm::mat4 transposed = glm::transpose(matrix);
+        memcpy(&transform, glm::value_ptr(transposed), sizeof(transform));
+        return transform;
+    };
+
+    std::vector<VkAccelerationStructureInstanceKHR> instances;
+    instances.reserve(flatScene.instanceFirstGeometry.size());
+
+    for (int i = 0; i < flatScene.instances.size(); i++)
+    {
+        const MeshInstance& meshInstance = flatScene.instances.at(i);
+
+        VkAccelerationStructureInstanceKHR instance{};
+        instance.transform = toTransformMatrixKHR(meshInstance.modelMatrix);
+
+        // instanceCustomIndex holds the instance's first row in geometries[]
+        // The shader will read geometries[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT],
+        // so instances sharing a BLAS can use different materials
+        instance.instanceCustomIndex = flatScene.instanceFirstGeometry.at(i);
+
+        instance.mask = 0xFF;
+
+        // We only have one hit group for all geometry, so no offset necessary here
+        instance.instanceShaderBindingTableRecordOffset = 0;
+
+        // Backfaces must hit (both sides of a surface should be treated as valid intersections)
+        instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+
+        instance.accelerationStructureReference = m_BLASes.at(meshInstance.meshIndex).deviceAddress;
+
+        instances.push_back(instance);
+    }
+
+    vkutil::Buffer instanceBuffer{};
+    if (!vkutil::createAndUploadBuffer(
+        *m_context,
+        instances.data(),
+        instances.size() * sizeof(VkAccelerationStructureInstanceKHR),
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        instanceBuffer))
+    {
+        fprintf(stderr, "Failed to create the TLAS instance buffer.\n");
+        return false;
+    }
+
+    VkAccelerationStructureGeometryInstancesDataKHR instancesData{};
+    instancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+    instancesData.arrayOfPointers = VK_FALSE;
+    instancesData.data.deviceAddress = instanceBuffer.deviceAddress;
+
+    VkAccelerationStructureGeometryKHR geometry{};
+    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    geometry.geometry.instances = instancesData;
+
+    VkAccelerationStructureBuildRangeInfoKHR buildRange{};
+
+    // primitiveCount counts whatever the geometry type's unit is.
+    // For VK_GEOMETRY_TYPE_TRIANGLES_KHR its triangles, but for
+    // VK_GEOMETRY_TYPE_INSTANCES_KHR its VkAccelerationStructureInstanceKHR
+    // entries (one per MeshInstance)
+    buildRange.primitiveCount = static_cast<uint32_t>(instances.size());
+
+    // NCHORTEK NOTE: The BLAS builds each ran through endSingleTimeCommands,
+    // which waits idle, so they are complete before this build reads them.
+    // If the wait idle is every removed, this will need sync handling
+    const bool buildSuccessful = buildAccelStructure(
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        { geometry },
+        { buildRange },
+        m_TLAS);
+
+    // Right now the instanceBuffer is only needed to build the TLAS.
+    // Because we never update the TLAS, we can safely destroy it
+    // after the TLAS is created
+    vkutil::destroyBuffer(*m_context, instanceBuffer);
+
+    if (!buildSuccessful)
+    {
+        fprintf(stderr, "Failed to build the TLAS.\n");
+        return false;
+    }
+
     return true;
 }
 

@@ -37,6 +37,7 @@ namespace sceneutil
     {
         size_t oldGeometryCount = flatScene.geometries.size();
         flatScene.instanceFirstGeometry.push_back(static_cast<uint32_t>(oldGeometryCount));
+        flatScene.instances.push_back(instance);
          
         const std::vector<MeshPrimitiveRange>& primitiveRanges = flatScene.meshRanges.at(instance.meshIndex);
         for (const MeshPrimitiveRange& range : primitiveRanges)
