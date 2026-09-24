@@ -1,6 +1,7 @@
 #include "image.h"
 #include "scene.h"
 #include "sceneStructs.h"
+#include "sceneUtils.h"
 #include "utilities.h"
 
 #include <glm/glm.hpp>
@@ -12,6 +13,7 @@
 #include "vk/context.h"
 #include "vk/renderer.h"
 #include "vk/swapchain.h"
+#include "vk/gpuscene.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -47,6 +49,7 @@ int height;
 
 std::unique_ptr<VulkanContext> context;
 std::unique_ptr<Swapchain> swapchain;
+std::unique_ptr<GpuScene> gpuScene;
 std::unique_ptr<Renderer> renderer;
 
 GLFWwindow* window;
@@ -140,6 +143,17 @@ bool init()
         return false;
     }
 
+    // Initialize GPU scene data
+    gpuScene = std::make_unique<GpuScene>();
+    {
+        const sceneutil::FlatScene flatScene = sceneutil::flattenScene(*scene);
+        if (!gpuScene->init(*context, flatScene))
+        {
+            fprintf(stderr, "Failed to initialize GpuScene\n");
+            return false;
+        }
+    }
+
     // Initialize Renderer
     renderer = std::make_unique<Renderer>();
 
@@ -229,6 +243,7 @@ void cleanup()
     }
     
     renderer.reset();
+    gpuScene.reset();
     swapchain.reset();
     context.reset();
 

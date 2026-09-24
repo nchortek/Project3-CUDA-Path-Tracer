@@ -50,7 +50,7 @@ GPU_CONST uint kAccumImageBinding = 1;
 GPU_CONST uint kDisplayImageBinding = 2;
 
 // Constants for material types
-// NCHORTEK TODO
+GPU_CONST uint kDiffuse = 1;
 
 // Constants for flags
 // NCHORTEK TODO
@@ -96,7 +96,6 @@ struct GpuMaterial
     float metallic;
     float ior;
     float transmission;
-    float pad;
 };
 
 // Device Buffer Addresses for our scene buffers

@@ -27,4 +27,4 @@ https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/tutorial/
 
 ### Class Code
 
-icosphere.h - adapted from CIS 5660 Procedural Graphics HW 1: Fireball
+cube.h, icosphere.h - adapted from CIS 5660 Procedural Graphics HW0

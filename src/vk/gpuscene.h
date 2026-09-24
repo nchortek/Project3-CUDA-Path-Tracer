@@ -2,6 +2,10 @@
 
 #include <volk.h>
 
+#include "sceneUtils.h"
+
+class VulkanContext;
+
 class GpuScene
 {
 public:
@@ -18,7 +22,7 @@ public:
     GpuScene(GpuScene&&) = delete;
     GpuScene& operator=(GpuScene&&) = delete;
 
-    bool init();
+    bool init(VulkanContext&, const sceneutil::FlatScene&);
     void destroy();
 
 private:

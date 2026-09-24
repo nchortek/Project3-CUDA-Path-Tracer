@@ -6,6 +6,9 @@
 #include <glm/gtx/string_cast.hpp>
 #include "json.hpp"
 
+#include "cube.h"
+#include "icosphere.h"
+
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -16,13 +19,16 @@ using json = nlohmann::json;
 
 Scene::Scene(string filename)
 {
+    meshes.reserve(2);
+    meshes.push_back(generateCube());
+    meshes.push_back(generateIcosphere(kIcosphereSubdivisions));
+
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
     auto ext = filename.substr(filename.find_last_of('.'));
     if (ext == ".json")
     {
         loadFromJSON(filename);
-        return;
     }
     else
     {
@@ -67,14 +73,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
+        MeshInstance instance{};
+
         if (type == "cube")
         {
             newGeom.type = CUBE;
+            instance.meshIndex = kCubeMeshIndex;
         }
         else
         {
             newGeom.type = SPHERE;
+            instance.meshIndex = kSphereMeshIndex;
         }
+
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
@@ -86,6 +97,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+        instance.materialId = newGeom.materialid;
+        instance.modelMatrix = newGeom.transform;
+        meshInstances.push_back(instance);
 
         geoms.push_back(newGeom);
     }

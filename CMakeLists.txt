@@ -93,9 +93,11 @@ set_target_properties(volk vk-bootstrap imgui PROPERTIES FOLDER "external")
 
 set(headers
     src/icosphere.h
+    src/cube.h
     src/image.h
     src/scene.h
     src/sceneStructs.h
+    src/sceneUtils.h
     src/utilities.h
     src/gpu/shared.h
     src/vk/context.h
@@ -111,6 +113,7 @@ set(sources
     src/main.cpp
     src/image.cpp
     src/scene.cpp
+    src/sceneUtils.cpp
     src/stb.cpp
     src/utilities.cpp
     src/vk/context.cpp

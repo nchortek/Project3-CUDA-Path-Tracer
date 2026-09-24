@@ -8,29 +8,18 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
+#include "gpu/shared.h"
+#include "sceneStructs.h"
+
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
 
-// Replace these with the project's Vertex (gpu/shared.h) and MeshData types.
-struct IcoVertex
-{
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec2 uv;
-};
-
-struct IcoMesh
-{
-    std::vector<IcoVertex> vertices;
-    std::vector<uint32_t>  indices;   // triangle list, CCW when viewed from outside
-};
-
 // subdivisions: 0 = icosahedron (20 tris); each level multiplies triangles by 4.
 // 4 → 5,120 tris / 2,562 verts; 5 → 20,480 tris / 10,242 verts.
-inline IcoMesh generateIcosphere(int subdivisions, float radius = 0.5f)
+inline MeshData generateIcosphere(int subdivisions, float radius = 0.5f)
 {
     const float X = 0.525731112119133606f;
     const float Z = 0.850650808352039932f;
@@ -88,23 +77,27 @@ inline IcoMesh generateIcosphere(int subdivisions, float radius = 0.5f)
         tris.swap(next);
     }
 
-    IcoMesh mesh;
-    mesh.vertices.reserve(dirs.size());
+    MeshPrimitive primitive;
+
+    primitive.vertices.reserve(dirs.size());
+
     for (const glm::vec3& d : dirs)
     {
-        IcoVertex v;
+        gpu::Vertex v;
         v.position = d * radius;
         v.normal   = d;  // exact sphere normal, not a face average
         // Equirectangular UVs. There's a seam at u = 0/1 (triangles straddling
         // it interpolate across the whole texture); fine until textures matter.
         v.uv = glm::vec2(0.5f + std::atan2(d.z, d.x) / glm::two_pi<float>(),
                          0.5f - std::asin(glm::clamp(d.y, -1.0f, 1.0f)) / glm::pi<float>());
-        mesh.vertices.push_back(v);
+        primitive.vertices.push_back(v);
     }
 
-    mesh.indices.reserve(finalTris * 3);
+    primitive.indices.reserve(finalTris * 3);
     for (const auto& t : tris)
-        mesh.indices.insert(mesh.indices.end(), t.begin(), t.end());
+        primitive.indices.insert(primitive.indices.end(), t.begin(), t.end());
 
+    MeshData mesh;
+    mesh.primitives.push_back(std::move(primitive));
     return mesh;
 }
