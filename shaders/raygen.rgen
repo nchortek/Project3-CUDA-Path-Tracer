@@ -3,7 +3,9 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "gpu/shared.h"
+#include "common.glsl"
 
+layout(set = kRendererDescriptorSet, binding = kTLASBinding) uniform accelerationStructureEXT TLAS;
 layout(set = kRendererDescriptorSet, binding = kAccumImageBinding, rgba32f) uniform image2D accumImage;
 layout(set = kRendererDescriptorSet, binding = kDisplayImageBinding, rgba8) uniform image2D displayImage;
 
@@ -11,6 +13,11 @@ layout(push_constant, scalar) uniform PushConstantBlock
 {
     PushConstants pc;
 };
+
+// Raygen owns the payload, so this is rayPayloadEXT rather than the
+// rayPayloadInEXT used by our closest-hit and miss shaders.
+// The location must match the last argument of traceRayEXT.
+layout(location = 0) rayPayloadEXT IntersectionInfo isect;
 
 void main()
 {
@@ -25,6 +32,33 @@ void main()
         + pc.camera.right * pc.camera.pixelLength.x * (pixel.x - halfResolution.x)
         - pc.camera.up * pc.camera.pixelLength.y * (pixel.y - halfResolution.y));
     
-    vec4 rayDirColor = vec4(direction * 0.5 + 0.5, 1.0);
-    imageStore(displayImage, ivec2(pixel), rayDirColor);
+    // Set the miss sentinel before tracing, so a miss is correct even for traces
+    // where no shader writes the payload
+    isect.t = kMiss;
+
+    traceRayEXT(
+        TLAS,
+        gl_RayFlagsNoneEXT,
+        kInstanceMaskAllBitsSet,
+        0,
+        0,
+        0,
+        pc.camera.position,
+        kTMin,
+        direction,
+        kTMax,
+        0);
+
+    vec3 color = vec3(0.0);
+    if (isect.t != kMiss)
+    {
+        // NCHORTEK TODO: Might want to add a gui toggle for enabling some debug views
+        //color = isect.worldShadingNor * 0.5 + 0.5;
+
+        SceneAddresses sceneAddresses = SceneAddressesBuffer(pc.sceneAddr).deviceAddresses;
+        GpuMaterial material = MaterialBuffer(sceneAddresses.materialsAddr).materials[isect.materialIndex];
+        color = material.baseColor;
+    }
+
+    imageStore(displayImage, ivec2(pixel), vec4(color, 1.0));
 }

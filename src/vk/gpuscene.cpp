@@ -229,7 +229,7 @@ bool GpuScene::createTLAS(const sceneutil::FlatScene& flatScene)
         // so instances sharing a BLAS can use different materials
         instance.instanceCustomIndex = flatScene.instanceFirstGeometry.at(i);
 
-        instance.mask = 0xFF;
+        instance.mask = gpu::kInstanceMaskAllBitsSet;
 
         // We only have one hit group for all geometry, so no offset necessary here
         instance.instanceShaderBindingTableRecordOffset = 0;

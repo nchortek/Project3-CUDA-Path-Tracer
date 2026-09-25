@@ -221,6 +221,10 @@ if(shader_entry_points)
         list(APPEND shader_sources ${SHADER_SRC_DIR}/${shader})
     endforeach()
 
+    # Add GLSL helpers that do not contain entry points here so they're
+    # visible in the VS solution
+    list(APPEND shader_sources ${SHADER_SRC_DIR}/common.glsl)
+
     add_custom_target(shaders DEPENDS ${spv_outputs} SOURCES ${shader_sources})
     add_dependencies(${CMAKE_PROJECT_NAME} shaders)
     set_target_properties(shaders PROPERTIES FOLDER "shaders")

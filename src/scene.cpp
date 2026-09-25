@@ -121,7 +121,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.up = glm::vec3(up[0], up[1], up[2]);
 
     //calculate fov based on resolution
-    float yscaled = tan(fovy * (PI / 180));
+    // NCHORTEK NOTE: The basecode yscaled calculation causes wonky distortions
+    //float yscaled = tan(fovy * (PI / 180));
+    float yscaled = tan(fovy / 2);
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
     float fovx = (atan(xscaled) * 180) / PI;
     camera.fov = glm::vec2(fovx, fovy);

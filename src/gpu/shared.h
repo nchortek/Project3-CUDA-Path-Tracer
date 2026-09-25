@@ -31,6 +31,10 @@ GPU_NAMESPACE_END
 // Note that scalar layout only applies to blocks declared with layout(scalar).
 // #extension must precede declarations, so other shaders will need to include
 // this header first.
+//
+// Also critical: every layout(...) must include "scalar", and if its a buffer
+// being used with buffer device address then we additionally need both
+// "buffer_reference" and "buffer_reference_align" 
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference : require
@@ -54,6 +58,9 @@ GPU_CONST uint kDiffuse = 1;
 
 // Constants for flags
 // NCHORTEK TODO
+
+// Misc.
+GPU_CONST uint kInstanceMaskAllBitsSet = 0xFFu;
 
 struct Vertex
 {
