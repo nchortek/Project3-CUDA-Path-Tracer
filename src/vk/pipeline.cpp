@@ -74,22 +74,29 @@ void Pipeline::destroy()
 bool Pipeline::createRendererDescriptorSetLayout()
 {
     // NCHORTEK TODO: This will eventually need to include TLAS
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
 
-    // Configure a binding for our accumulation image (holds a running sum of samples)
-    bindings.at(0).binding = gpu::kAccumImageBinding;
-    bindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    // Configure a binding for our TLAS
+    bindings.at(0).binding = gpu::kTLASBinding;
+    bindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     bindings.at(0).descriptorCount = 1;
     bindings.at(0).stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
     bindings.at(0).pImmutableSamplers = nullptr;
 
-    // Configure a binding for our display image (holds the render output that gets
-    // blitted into a swapchain image prior to presentation)
-    bindings.at(1).binding = gpu::kDisplayImageBinding;
+    // Configure a binding for our accumulation image (holds a running sum of samples)
+    bindings.at(1).binding = gpu::kAccumImageBinding;
     bindings.at(1).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     bindings.at(1).descriptorCount = 1;
     bindings.at(1).stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
     bindings.at(1).pImmutableSamplers = nullptr;
+
+    // Configure a binding for our display image (holds the render output that gets
+    // blitted into a swapchain image prior to presentation)
+    bindings.at(2).binding = gpu::kDisplayImageBinding;
+    bindings.at(2).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    bindings.at(2).descriptorCount = 1;
+    bindings.at(2).stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+    bindings.at(2).pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

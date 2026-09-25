@@ -13,6 +13,7 @@
 struct GLFWwindow;
 class VulkanContext;
 class Swapchain;
+class GpuScene;
 
 class Renderer
 {
@@ -30,7 +31,7 @@ public:
     Renderer(Renderer&&) = delete;
     Renderer& operator=(Renderer&&) = delete;
 
-    bool init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height);
+    bool init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height, GpuScene& gpuScene);
     void destroy();
     bool drawFrame();
 
@@ -92,7 +93,7 @@ private:
     void destroyStorageImage(StorageImage& storageImage);
 
     bool createDescriptorPool();
-    bool createRendererDescriptorSet();
+    bool createRendererDescriptorSet(VkAccelerationStructureKHR TLAS);
 
     bool recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 

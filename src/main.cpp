@@ -157,7 +157,7 @@ bool init()
     // Initialize Renderer
     renderer = std::make_unique<Renderer>();
 
-    if (!renderer->init(*context, *swapchain, window, width, height))
+    if (!renderer->init(*context, *swapchain, window, width, height, *gpuScene))
     {
         fprintf(stderr, "Failed to initialize Renderer\n");
         return false;

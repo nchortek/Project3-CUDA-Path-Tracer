@@ -2,7 +2,7 @@
 
 #include "context.h"
 #include "swapchain.h"
-
+#include "gpuscene.h"
 #include "gpu/shared.h"
 
 #include <array>
@@ -10,12 +10,16 @@
 
 #include <VkBootstrap.h>
 
-bool Renderer::init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height)
+bool Renderer::init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* window, uint32_t width, uint32_t height, GpuScene& gpuScene)
 {
     m_context = &context;
     m_swapchain = &swapchain;
     m_renderExtent.width = width;
     m_renderExtent.height = height;
+
+    // These device address pointers never change so its safe to just set them
+    // once on init rather than per-frame
+    m_pushConstants.sceneAddr = gpuScene.getSceneAddresses();
 
     if (!m_gui.init(context, swapchain, window))
     {
@@ -59,7 +63,7 @@ bool Renderer::init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* wi
         return false;
     }
 
-    if (!createRendererDescriptorSet())
+    if (!createRendererDescriptorSet(gpuScene.getTLAS()))
     {
         destroy();
         return false;
@@ -108,6 +112,7 @@ void Renderer::destroy()
     m_frameInFlight = 0;
     m_pipeline.destroy();
     m_gui.destroy();
+    m_pushConstants = {};
     m_swapchain = nullptr;
     m_context = nullptr;
 }
@@ -467,12 +472,16 @@ bool Renderer::createStorageImages()
 
 bool Renderer::createDescriptorPool()
 {
-    // NCHORTEK TODO: This will need to be expanded to include the TLAS later
-    // One pool size per descriptor type, counting descriptors across all sets:
-    // the accumulation image and the display image
-    std::array<VkDescriptorPoolSize, 1> poolSizes{};
+    // One pool size per descriptor type, counting descriptors across all sets
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+
+    // One for the accumulation image and the display image
     poolSizes.at(0).type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes.at(0).descriptorCount = 2;
+
+    // One for our TLAS
+    poolSizes.at(1).type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    poolSizes.at(1).descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -491,7 +500,7 @@ bool Renderer::createDescriptorPool()
     return true;
 }
 
-bool Renderer::createRendererDescriptorSet()
+bool Renderer::createRendererDescriptorSet(VkAccelerationStructureKHR TLAS)
 {
     VkDevice device = m_context->getDevice();
     VkDescriptorSetLayout layout = m_pipeline.getRendererDescriptorSetLayout();
@@ -510,6 +519,14 @@ bool Renderer::createRendererDescriptorSet()
         return false;
     }
 
+    // Unlike other descriptor writes, writing a TLAS must be done via
+    // a VkWriteDescriptorSet pointing to a VkWriteDescriptorSetAccelerationStructureKHR
+    // struct.
+    VkWriteDescriptorSetAccelerationStructureKHR descWriteTLAS{};
+    descWriteTLAS.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+    descWriteTLAS.accelerationStructureCount = 1;
+    descWriteTLAS.pAccelerationStructures = &TLAS;
+
     VkDescriptorImageInfo accumImageInfo{};
     accumImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     accumImageInfo.imageView = m_accumImage.imageView;
@@ -518,21 +535,28 @@ bool Renderer::createRendererDescriptorSet()
     displayImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     displayImageInfo.imageView = m_displayImage.imageView;
 
-    std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+    std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
-    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[0].dstSet = m_rendererDescriptorSet;
-    descriptorWrites[0].dstBinding = gpu::kAccumImageBinding;
-    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    descriptorWrites[0].descriptorCount = 1;
-    descriptorWrites[0].pImageInfo = &accumImageInfo;
+    descriptorWrites.at(0).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites.at(0).dstSet = m_rendererDescriptorSet;
+    descriptorWrites.at(0).dstBinding = gpu::kTLASBinding;
+    descriptorWrites.at(0).descriptorCount = 1;
+    descriptorWrites.at(0).descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    descriptorWrites.at(0).pNext = &descWriteTLAS;
 
-    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[1].dstSet = m_rendererDescriptorSet;
-    descriptorWrites[1].dstBinding = gpu::kDisplayImageBinding;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    descriptorWrites[1].descriptorCount = 1;
-    descriptorWrites[1].pImageInfo = &displayImageInfo;
+    descriptorWrites.at(1).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites.at(1).dstSet = m_rendererDescriptorSet;
+    descriptorWrites.at(1).dstBinding = gpu::kAccumImageBinding;
+    descriptorWrites.at(1).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites.at(1).descriptorCount = 1;
+    descriptorWrites.at(1).pImageInfo = &accumImageInfo;
+
+    descriptorWrites.at(2).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites.at(2).dstSet = m_rendererDescriptorSet;
+    descriptorWrites.at(2).dstBinding = gpu::kDisplayImageBinding;
+    descriptorWrites.at(2).descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites.at(2).descriptorCount = 1;
+    descriptorWrites.at(2).pImageInfo = &displayImageInfo;
 
     vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     return true;

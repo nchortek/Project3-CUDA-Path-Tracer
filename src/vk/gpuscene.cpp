@@ -193,7 +193,7 @@ bool GpuScene::createBLASes(const sceneutil::FlatScene& flatScene)
             buildRanges,
             m_BLASes.at(meshIndex)))
         {
-            fprintf(stderr, "Failed to build BLAS for mesh index %zu.\n", meshIndex);
+            fprintf(stderr, "Failed to build BLAS for mesh index %d.\n", meshIndex);
             return false;
         }
     }

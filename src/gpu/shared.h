@@ -45,7 +45,7 @@ GPU_NAMESPACE_BEGIN
 
 // Constants for descriptor set numbers and binding indices
 GPU_CONST uint kRendererDescriptorSet = 0;
-GPU_CONST uint kTlasBinding = 0;
+GPU_CONST uint kTLASBinding = 0;
 GPU_CONST uint kAccumImageBinding = 1;
 GPU_CONST uint kDisplayImageBinding = 2;
 
