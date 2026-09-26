@@ -4,6 +4,7 @@
 
 #include "gpu/shared.h"
 #include "common.glsl"
+#include "rng.glsl"
 
 layout(set = kRendererDescriptorSet, binding = kTLASBinding) uniform accelerationStructureEXT TLAS;
 layout(set = kRendererDescriptorSet, binding = kAccumImageBinding, rgba32f) uniform image2D accumImage;
@@ -21,6 +22,8 @@ layout(location = 0) rayPayloadEXT IntersectionInfo isect;
 
 void main()
 {
+    initSeed(gl_LaunchIDEXT, gl_LaunchSizeEXT, pc.renderedFrameCount);
+
     // gl_LaunchIDEXT (0,0) is the top-left image pixel,
     // and +y increases down the screen.
     const vec2 pixel = vec2(gl_LaunchIDEXT.xy);
@@ -52,12 +55,13 @@ void main()
     vec3 color = vec3(0.0);
     if (isect.t != kMiss)
     {
-        // NCHORTEK TODO: Might want to add a gui toggle for enabling some debug views
-        //color = isect.worldShadingNor * 0.5 + 0.5;
-
         SceneAddresses sceneAddresses = SceneAddressesBuffer(pc.sceneAddr).deviceAddresses;
         GpuMaterial material = MaterialBuffer(sceneAddresses.materialsAddr).materials[isect.materialIndex];
         color = material.baseColor;
+
+        // NCHORTEK TODO: Might want to add a gui toggle for enabling some debug views
+        //color = isect.worldShadingNor * 0.5 + 0.5;
+        color = vec3(rng());
     }
 
     imageStore(displayImage, ivec2(pixel), vec4(color, 1.0));
