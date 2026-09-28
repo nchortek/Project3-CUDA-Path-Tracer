@@ -89,8 +89,11 @@ SurfaceInteraction sceneIntersect(Ray ray)
     if (surface.isect.t == kMiss)
     {
         surface.material = kEmptyMaterial;
+        surface.faceForwardGeometricNor = vec3(0.0);
         return surface;
     }
+
+    surface.faceForwardGeometricNor = faceForward(surface.isect.worldGeometricNor, -ray.direction);
     
     // Set the material to what was hit
     SceneAddresses sceneAddresses = SceneAddressesBuffer(pc.sceneAddr).deviceAddresses;
@@ -103,13 +106,17 @@ SurfaceInteraction sceneIntersect(Ray ray)
         // and assume wo is on the +z side. If the ray hits the surface from
         // the side opposite its stored normal, this results in sampled directions
         // incorrectly landing on the far side of the surface. To fix this, we
-        // flip the normal direction to face the incoming ray for intersections
-        // in this edge case.
+        // flip the normal direction toward the face-forward geometric normal for
+        // intersections in this edge case.
         //
         // Note that we do not want to perform this flip for transmissive types,
         // because transmissive BSDF functions use the sign of wo.z to determine if
         // a ray is entering or exiting an object.
-        surface.isect.worldShadingNor = faceForward(surface.isect.worldShadingNor, -ray.direction); 
+        //
+        // We use the worldGeometricNor here because at object silhouettes, the
+        // interpolated shading normal can point away from the viewer even though
+        // the ray hit the front of the triangle.
+        surface.isect.worldShadingNor = faceForward(surface.isect.worldShadingNor, surface.faceForwardGeometricNor); 
     }
 
     return surface;
@@ -156,6 +163,15 @@ vec3 Li_Naive(Ray ray)
         if (bsdfPdf == 0.0 || bsdf == vec3(0.0))
         {
             // Terminate the path if we encounter an invalid sample
+            break;
+        }
+
+        if (surface.material.type != kSpecTrans
+            && surface.material.type != kSpecGlass
+            && dot(wiW, surface.faceForwardGeometricNor) <= 0.0)
+        {
+            // For non-transmissive types, terminate the path if the
+            // sample doesn't point away from the front of the surface
             break;
         }
 

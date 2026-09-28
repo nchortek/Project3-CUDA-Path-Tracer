@@ -64,6 +64,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasReflective = 1.0;
+        }
+        else if (p["TYPE"] == "Glass")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasRefractive = 1.0;
+            newMaterial.indexOfRefraction = p.value("IOR", 1.55f);
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -86,7 +94,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             instance.meshIndex = kSphereMeshIndex;
         }
 
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        newGeom.materialid = MatNameToID.at(p["MATERIAL"]);
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];

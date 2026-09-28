@@ -66,6 +66,7 @@ struct SurfaceInteraction
 {
     IntersectionInfo isect;
     GpuMaterial material;
+    vec3 faceForwardGeometricNor;
 };
 
 // hitAttributeEXT gives the weights for two vertices,
