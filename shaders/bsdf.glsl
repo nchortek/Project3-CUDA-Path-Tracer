@@ -35,21 +35,20 @@ vec3 sample_f_specular_refl(vec3 albedo, vec3 nor, vec3 wo,
     return albedo / abs(wiL.z);
 }
 
-vec3 sample_f_specular_trans(vec3 albedo, vec3 nor, vec3 wo,
+vec3 sample_f_specular_trans(vec3 albedo, float ior, vec3 nor, vec3 wo,
     out vec3 wiW, out uint sampledType)
 {
     wiW = vec3(0.f);
     sampledType = kSpecTrans;
 
     // Hard-coded to index of refraction of glass
-    float etaA = 1.;
-    float etaB = 1.55;
+    const float etaA = 1.;
 
     // wo.z == dot(wo, vec3(0.f, 0.f, 1.f))
     bool isExitingSurface = wo.z < 0.f;
 
     vec3 refractNor = isExitingSurface ? vec3(0.f, 0.f, -1.f) : vec3(0.f, 0.f, 1.f);
-    float relativeEta = isExitingSurface ? etaB / etaA : etaA / etaB;
+    float relativeEta = isExitingSurface ? ior / etaA : etaA / ior;
 
     // Make sure we set wiW to a world-space ray direction,
     // since wo is in tangent space
@@ -66,12 +65,11 @@ vec3 sample_f_specular_trans(vec3 albedo, vec3 nor, vec3 wo,
     return albedo / abs(wiL.z);
 }
 
-vec3 fresnelDielectricEval(float cosThetaI)
+vec3 fresnelDielectricEval(float cosThetaI, float ior)
 {
     // We will hard-code the indices of refraction to be
     // those of glass
     float etaI = 1.;
-    float etaT = 1.55;
     cosThetaI = clamp(cosThetaI, -1.f, 1.f);
 
     bool entering = cosThetaI > 0.f;
@@ -79,24 +77,24 @@ vec3 fresnelDielectricEval(float cosThetaI)
     if (!entering)
     {
         float temp = etaI;
-        etaI = etaT;
-        etaT = temp;
+        etaI = ior;
+        ior = temp;
         cosThetaI = abs(cosThetaI);
     }
 
     float sinThetaI = sqrt(max(0.f, 1.f - cosThetaI * cosThetaI));
-    float sinThetaT = etaI / etaT * sinThetaI;
+    float sinThetaT = etaI / ior * sinThetaI;
 
     float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
 
-    float rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
-    float rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+    float rparl = ((ior * cosThetaI) - (etaI * cosThetaT)) / ((ior * cosThetaI) + (etaI * cosThetaT));
+    float rperp = ((etaI * cosThetaI) - (ior * cosThetaT)) / ((etaI * cosThetaI) + (ior * cosThetaT));
     float eval = (rparl * rparl + rperp * rperp) / 2.f;
 
     return vec3(eval);
 }
 
-vec3 sample_f_glass(vec3 albedo, vec3 nor, vec2 xi, vec3 wo,
+vec3 sample_f_glass(vec3 albedo, float ior, vec3 nor, vec2 xi, vec3 wo,
     out vec3 wiW, out uint sampledType)
 {
     float random = rng();
@@ -106,125 +104,16 @@ vec3 sample_f_glass(vec3 albedo, vec3 nor, vec2 xi, vec3 wo,
         // reflection BxDF half the time
         vec3 R = sample_f_specular_refl(albedo, nor, wo, wiW, sampledType);
         sampledType = kSpecRefl;
-        return 2 * fresnelDielectricEval(dot(nor, normalize(wiW))) * R;
+        return 2 * fresnelDielectricEval(dot(nor, normalize(wiW)), ior) * R;
     }
     else
     {
         // Have to double contribution b/c we only sample
         // transmit BxDF half the time
-        vec3 T = sample_f_specular_trans(albedo, nor, wo, wiW, sampledType);
+        vec3 T = sample_f_specular_trans(albedo, ior, nor, wo, wiW, sampledType);
         sampledType = kSpecTrans;
-        return 2 * (vec3(1.) - fresnelDielectricEval(dot(nor, normalize(wiW)))) * T;
+        return 2 * (vec3(1.) - fresnelDielectricEval(dot(nor, normalize(wiW)), ior)) * T;
     }
-}
-
-// These are used for microfacet reflections
-vec3 sample_wh(vec3 wo, vec2 xi, float roughness)
-{
-    vec3 wh;
-
-    float ct = 0;
-    float phi = kTwoPi * xi[1];
-    // We'll only handle isotropic microfacet materials
-    float tanTheta2 = roughness * roughness * xi[0] / (1.0f - xi[0]);
-    ct = 1 / sqrt(1 + tanTheta2);
-
-    float sinTheta =
-        sqrt(max(0.f, 1.f - ct * ct));
-
-    wh = vec3(sinTheta * cos(phi), sinTheta * sin(phi), ct);
-    if (!sameHemisphere(wo, wh))
-    {
-        wh = -wh;
-    }
-
-    return wh;
-}
-
-float trowbridgeReitzD(vec3 wh, float roughness)
-{
-    float t2 = tan2Theta(wh);
-    if (isinf(t2)) return 0.f;
-
-    float cos4Theta = cos2Theta(wh) * cos2Theta(wh);
-
-    float e =
-        (cos2Phi(wh) / (roughness * roughness)
-            + sin2Phi(wh) / (roughness * roughness))
-        * t2;
-
-    return 1 / (kPi * roughness * roughness * cos4Theta * (1 + e) * (1 + e));
-}
-
-float lambda(vec3 w, float roughness)
-{
-    float absTanTheta = abs(tanTheta(w));
-    if (isinf(absTanTheta)) return 0.;
-
-    // Compute alpha for direction w
-    float alpha =
-        sqrt(cos2Phi(w) * roughness * roughness + sin2Phi(w) * roughness * roughness);
-    float alpha2Tan2Theta = (roughness * absTanTheta) * (roughness * absTanTheta);
-    return (-1 + sqrt(1.f + alpha2Tan2Theta)) / 2;
-}
-
-float trowbridgeReitzG(vec3 wo, vec3 wi, float roughness)
-{
-    return 1 / (1 + lambda(wo, roughness) + lambda(wi, roughness));
-}
-
-float trowbridgeReitzPdf(vec3 wo, vec3 wh, float roughness)
-{
-    return trowbridgeReitzD(wh, roughness) * absCosTheta(wh);
-}
-
-vec3 f_microfacet_refl(vec3 albedo, vec3 wo, vec3 wi, float roughness)
-{
-    float cosThetaO = absCosTheta(wo);
-    float cosThetaI = absCosTheta(wi);
-    vec3 wh = wi + wo;
-
-    // Handle degenerate cases for microfacet reflection
-    if (cosThetaI == 0 || cosThetaO == 0)
-    {
-        return vec3(0.f);
-    }
-
-    if (wh.x == 0 && wh.y == 0 && wh.z == 0)
-    {
-        return vec3(0.f);
-    }
-
-    wh = normalize(wh);
-
-    // Handle different Fresnel coefficients
-    vec3 F = vec3(1.);//fresnel->Evaluate(glm::dot(wi, wh));
-    float D = trowbridgeReitzD(wh, roughness);
-    float G = trowbridgeReitzG(wo, wi, roughness);
-    return albedo * D * G * F /
-        (4 * cosThetaI * cosThetaO);
-}
-
-vec3 sample_f_microfacet_refl(vec3 albedo, vec3 nor, vec2 xi, vec3 wo, float roughness,
-    out vec3 wiW, out float microfacetPdf, out uint sampledType)
-{
-    wiW = vec3(0.f);
-    microfacetPdf = 0.f;
-    sampledType = kMicrofacetRefl;
-
-    if (wo.z == 0)
-    {
-        return vec3(0.f);
-    }
-
-    vec3 wh = sample_wh(wo, xi, roughness);
-    vec3 wi = reflect(-wo, wh);
-    wiW = localToWorld(nor) * wi;
-    if (!sameHemisphere(wo, wi)) return vec3(0.f);
-
-    // Compute PDF of _wi_ for microfacet reflection
-    microfacetPdf = trowbridgeReitzPdf(wo, wh, roughness) / (4 * dot(wo, wh));
-    return f_microfacet_refl(albedo, wo, wi, roughness);
 }
 
 vec3 computeAlbedo(SurfaceInteraction surface)
@@ -233,16 +122,15 @@ vec3 computeAlbedo(SurfaceInteraction surface)
     return albedo;
 }
 
+float computeIor(SurfaceInteraction surface)
+{
+    return surface.material.ior;
+}
+
 vec3 computeNormal(SurfaceInteraction surface)
 {
     vec3 nor = surface.isect.worldShadingNor;
     return nor;
-}
-
-float computeRoughness(SurfaceInteraction surface)
-{
-    float roughness = surface.material.roughness;
-    return roughness;
 }
 
 // Computes the overall light scattering properties of a point on a Material,
@@ -258,7 +146,10 @@ vec3 f(SurfaceInteraction surface, vec3 woW, vec3 wiW)
     // If the outgoing ray is parallel to the surface,
     // we know we can return black b/c the Lambert term
     // in the overall Light Transport Equation will be 0.
-    if (wo.z == 0) return vec3(0.f);
+    if (wo.z == 0)
+    {
+        return vec3(0.f);
+    }
 
     // Since GLSL does not support classes or polymorphism,
     // we have to handle each material type with its own function.
@@ -276,15 +167,6 @@ vec3 f(SurfaceInteraction surface, vec3 woW, vec3 wiW)
     {
         return vec3(0.);
     }
-    // NCHORTEK TODO: Replace with my 5610 hw8/9 shader code
-    /*
-    else if (surface.material.type == kMicrofacetRefl)
-    {
-        return f_microfacet_refl(computeAlbedo(surface),
-            wo, wi,
-            computeRoughness(surface));
-    }
-    */
     // Default case, unhandled material
     else
     {
@@ -325,24 +207,13 @@ vec3 sample_f(SurfaceInteraction surface, vec3 woW, vec2 xi,
     else if (surface.material.type == kSpecTrans)
     {
         bsdfPdf = 1.;
-        return sample_f_specular_trans(computeAlbedo(surface), nor, wo, wiW, sampledType);
+        return sample_f_specular_trans(computeAlbedo(surface), computeIor(surface), nor, wo, wiW, sampledType);
     }
     else if (surface.material.type == kSpecGlass)
     {
         bsdfPdf = 1.;
-        return sample_f_glass(computeAlbedo(surface), nor, xi, wo, wiW, sampledType);
+        return sample_f_glass(computeAlbedo(surface), computeIor(surface), nor, xi, wo, wiW, sampledType);
     }
-    // NCHORTEK TODO: Replace with my 5610 hw8/9 shader code
-    /*
-    else if (surface.material.type == kMicrofacetRefl)
-    {
-        return sample_f_microfacet_refl(computeAlbedo(surface),
-            nor, xi, wo,
-            computeRoughness(surface),
-            wiW, bsdfPdf,
-            sampledType);
-    }
-    */
     // Default case, unhandled material
     else
     {
@@ -371,14 +242,6 @@ float pdf(SurfaceInteraction surface, vec3 woW, vec3 wiW)
     {
         return 0.;
     }
-    // NCHORTEK TODO: Replace with my 5610 hw8/9 shader code
-    /*
-    else if (surface.material.type == kMicrofacetRefl)
-    {
-        vec3 wh = normalize(wo + wi);
-        return trowbridgeReitzPdf(wo, wh, computeRoughness(surface)) / (4 * dot(wo, wh));
-    }
-    */
     // Default case, unhandled material
     else
     {
