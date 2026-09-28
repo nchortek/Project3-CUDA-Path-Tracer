@@ -45,6 +45,11 @@ public:
         m_pushConstants.camera = camera;
     }
 
+    void setMaxTraceDepth(uint32_t maxDepth)
+    {
+        m_pushConstants.maxDepth = maxDepth;
+    }
+
     uint32_t getRenderedFrameCount() const
     {
         return m_pushConstants.renderedFrameCount;

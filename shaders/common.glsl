@@ -34,6 +34,14 @@ layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Sce
 const float kMiss = -1.0;
 const float kTMin = 0.001;
 const float kTMax = 10000.0;
+const GpuMaterial kEmptyMaterial = GpuMaterial(
+    vec3(0.0),
+    0u,
+    vec3(0.0),
+    0.0,
+    0.0,
+    0.0,
+    0.0);
 
 struct IntersectionInfo
 {

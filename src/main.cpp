@@ -161,6 +161,8 @@ bool init()
         fprintf(stderr, "Failed to initialize Renderer\n");
         return false;
     }
+
+    renderer->setMaxTraceDepth(renderState->traceDepth);
     
     return true;
 }
