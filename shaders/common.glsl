@@ -54,6 +54,12 @@ struct IntersectionInfo
     float t;
 };
 
+struct SurfaceInteraction
+{
+    IntersectionInfo isect;
+    GpuMaterial material;
+};
+
 // hitAttributeEXT gives the weights for two vertices,
 // which we use to compute the third
 vec3 getBarycentricWeights(vec2 attribs)

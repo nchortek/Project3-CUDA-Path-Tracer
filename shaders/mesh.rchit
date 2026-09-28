@@ -7,7 +7,7 @@
 
 // This shader will fill the payload, which is then read by raygen after calling traceRayEXT.
 // The location must match the payload location raygen passes to traceRayEXT.
-layout(location = 0) rayPayloadInEXT IntersectionInfo isect;
+layout(location = 0) rayPayloadInEXT IntersectionInfo payload;
 
 // This is written by the HW RT's built-in triangle intersection.
 // It contains barycentric weights for vertices 1 and 2.
@@ -20,7 +20,7 @@ layout(push_constant, scalar) uniform PushConstantBlock
 
 void main()
 {
-    isect = getIntersectionInfo(
+    payload = getIntersectionInfo(
         pc.sceneAddr,
         gl_InstanceCustomIndexEXT,
         gl_GeometryIndexEXT,

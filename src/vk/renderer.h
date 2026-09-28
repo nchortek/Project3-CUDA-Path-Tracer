@@ -45,6 +45,16 @@ public:
         m_pushConstants.camera = camera;
     }
 
+    uint32_t getRenderedFrameCount() const
+    {
+        return m_pushConstants.renderedFrameCount;
+    }
+
+    void resetRenderedFrameCount()
+    {
+        m_pushConstants.renderedFrameCount = 0;
+    }
+
 private:
     static constexpr uint32_t kFramesInFlight = 2;
     static constexpr uint64_t kMaxTimeout = UINT64_MAX;

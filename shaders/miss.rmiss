@@ -4,10 +4,10 @@
 
 #include "common.glsl"
 
-layout(location = 0) rayPayloadInEXT IntersectionInfo isect;
+layout(location = 0) rayPayloadInEXT IntersectionInfo payload;
 
 void main()
 {
     // On a miss, all other payload attributes will be garbage values
-    isect.t = kMiss;
+    payload.t = kMiss;
 }

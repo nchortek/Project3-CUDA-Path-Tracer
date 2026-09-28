@@ -60,7 +60,7 @@ namespace sceneutil
         gpuMat.baseColor = material.color;
         gpuMat.emissionColor = material.color * material.emittance;
         gpuMat.ior = material.indexOfRefraction;
-        gpuMat.type = gpu::kDiffuse;
+        gpuMat.type = gpu::kDiffuseRefl;
         gpuMat.metallic = 0;
         gpuMat.roughness = 0;
         gpuMat.transmission = 0;

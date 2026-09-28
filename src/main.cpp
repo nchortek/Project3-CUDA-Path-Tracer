@@ -42,7 +42,6 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene* scene;
 GuiDataContainer* guiData;
 RenderState* renderState;
-int iteration;
 
 int width;
 int height;
@@ -221,7 +220,9 @@ void mainLoop()
 
         updateCamera();
 
-        std::string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+        std::string title = "CIS565 Path Tracer | " 
+            + utilityCore::convertIntToString(static_cast<int>(renderer->getRenderedFrameCount())) 
+            + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
 
         // Render ImGui Stuff
@@ -274,7 +275,6 @@ int main(int argc, char** argv)
     guiData = new GuiDataContainer();
 
     // Set up camera stuff from loaded path tracer settings
-    iteration = 0;
     renderState = &scene->state;
     Camera& cam = renderState->camera;
     width = cam.resolution.x;
@@ -315,13 +315,13 @@ int main(int argc, char** argv)
 
 void saveImage()
 {
-    if (iteration == 0)
+    float samples = static_cast<float>(renderer->getRenderedFrameCount());
+    if (samples == 0)
     {
         // No image data available to save
         return;
     }
-    
-    float samples = iteration;
+
     // output image file
     Image img(width, height);
 
@@ -353,7 +353,7 @@ void updateCamera()
 
     if (camchanged)
     {
-        iteration = 0;
+        renderer->resetRenderedFrameCount();
         cameraPosition.x = zoom * sin(phi) * sin(theta);
         cameraPosition.y = zoom * cos(theta);
         cameraPosition.z = zoom * cos(phi) * sin(theta);
@@ -379,14 +379,15 @@ void updateCamera()
         cam.pixelLength
     });
 
-    if (iteration == 0)
+    uint32_t samples = renderer->getRenderedFrameCount();
+    if (samples == 0)
     {
         // NCHORTEK TODO
         //pathtraceFree();
         //pathtraceInit(scene);
     }
 
-    if (iteration < renderState->iterations)
+    if (samples < renderState->iterations)
     {
         // NCHORTEK TODO
         //uchar4* pbo_dptr = NULL;
@@ -403,10 +404,10 @@ void updateCamera()
     else
     {
         // NCHORTEK TODO
-        saveImage();
+        //saveImage();
         //pathtraceFree();
         //cudaDeviceReset();
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        //glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 }
 

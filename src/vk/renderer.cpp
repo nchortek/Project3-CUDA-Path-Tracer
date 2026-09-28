@@ -20,6 +20,7 @@ bool Renderer::init(VulkanContext& context, Swapchain& swapchain, GLFWwindow* wi
     // These device address pointers never change so its safe to just set them
     // once on init rather than per-frame
     m_pushConstants.sceneAddr = gpuScene.getSceneAddresses();
+    m_pushConstants.renderedFrameCount = 0;
 
     if (!m_gui.init(context, swapchain, window))
     {
@@ -208,6 +209,10 @@ bool Renderer::drawFrame()
         fprintf(stderr, "Failed to submit the frame command buffer.\n");
         return false;
     }
+
+    // Only increment this after we know that we successfully submitted this frame's
+    // command buffer
+    m_pushConstants.renderedFrameCount++;
 
     // Now that we have told the GPU to render a frame, we need to actually
     // handle presentation of that frame to the screen. Presentation can't
@@ -581,10 +586,20 @@ bool Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t swapc
         return false;
     }
 
+    // Ensure that raygen does not read or write to the accumulation image
+    // until the previous frame has finished writing to it.
+    recordImageBarrier(
+        commandBuffer,
+        m_accumImage.image,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT);
+
     // Ensure that raygen does not write to the display image
     // until the previous frame's blit has finished reading it
-    // NCHORTEK TODO: Once we start using the accumulation image too we'll
-    // need a barrier for that as well
     recordImageBarrier(
         commandBuffer,
         m_displayImage.image,

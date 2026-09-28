@@ -54,7 +54,11 @@ GPU_CONST uint kAccumImageBinding = 1;
 GPU_CONST uint kDisplayImageBinding = 2;
 
 // Constants for material types
-GPU_CONST uint kDiffuse = 1;
+GPU_CONST uint kDiffuseRefl = 1;
+GPU_CONST uint kSpecRefl = 2;
+GPU_CONST uint kSpecTrans = 3;
+GPU_CONST uint kSpecGlass = 4;
+GPU_CONST uint kMicrofacetRefl = 5;
 
 // Constants for flags
 // NCHORTEK TODO
