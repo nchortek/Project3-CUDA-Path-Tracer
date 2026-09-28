@@ -34,6 +34,8 @@ static double lastX;
 static double lastY;
 
 static bool camchanged = true;
+static bool showGui = true;
+static bool enableDOF = false;
 
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
@@ -178,29 +180,21 @@ void RenderImGui()
     Gui& gui = renderer->getGui();
     gui.beginFrame();
 
-    ImGui::Begin("Path Tracer Analytics");
-    
-    // LOOK: Un-Comment to check the output window and usage
-    //bool show_demo_window = true;
-    //bool show_another_window = false;
-    //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    //static float f = 0.0f;
-    //static int counter = 0;
-    //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-    //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-    //ImGui::Checkbox("Another Window", &show_another_window);
+    if (showGui)
+    {
+        ImGui::Begin("Path Tracer Analytics");
 
-    //ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-    //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+        //ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
-    //if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-    //    counter++;
-    //ImGui::SameLine();
-    //ImGui::Text("counter = %d", counter);
-    ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::End();
+        if (ImGui::Checkbox("Enable Depth Of Field", &enableDOF))
+        {
+            renderer->setDepthOfField(enableDOF);
+            renderer->resetRenderedFrameCount();
+        }
 
+        ImGui::End();
+    }
     gui.renderFrame();
 }
 
@@ -315,40 +309,6 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void saveImage()
-{
-    float samples = static_cast<float>(renderer->getRenderedFrameCount());
-    if (samples == 0)
-    {
-        // No image data available to save
-        return;
-    }
-
-    // output image file
-    Image img(width, height);
-
-    for (int x = 0; x < width; x++)
-    {
-        for (int y = 0; y < height; y++)
-        {
-            int index = x + (y * width);
-            glm::vec3 pix = renderState->image[index];
-
-            // NCHORTEK TODO: this needs to be consistent with raygen ray direction calcs
-            img.setPixel(x, y, glm::vec3(pix) / samples);
-        }
-    }
-
-    std::string filename = renderState->imageName;
-    std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
-    filename = ss.str();
-
-    // CHECKITOUT
-    img.savePNG(filename);
-    //img.saveHDR(filename);  // Save a Radiance HDR file
-}
-
 void updateCamera()
 {
     Camera& cam = renderState->camera;
@@ -380,37 +340,6 @@ void updateCamera()
         cam.up,
         cam.pixelLength
     });
-
-    uint32_t samples = renderer->getRenderedFrameCount();
-    if (samples == 0)
-    {
-        // NCHORTEK TODO
-        //pathtraceFree();
-        //pathtraceInit(scene);
-    }
-
-    if (samples < renderState->iterations)
-    {
-        // NCHORTEK TODO
-        //uchar4* pbo_dptr = NULL;
-        //iteration++;
-        //cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
-
-        // execute the kernel
-        //int frame = 0;
-        //pathtrace(pbo_dptr, frame, iteration);
-
-        // unmap buffer object
-        //cudaGLUnmapBufferObject(pbo);
-    }
-    else
-    {
-        // NCHORTEK TODO
-        //saveImage();
-        //pathtraceFree();
-        //cudaDeviceReset();
-        //glfwSetWindowShouldClose(window, GLFW_TRUE);
-    }
 }
 
 //-------------------------------
@@ -424,11 +353,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         switch (key)
         {
             case GLFW_KEY_ESCAPE:
-                saveImage();
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
                 break;
             case GLFW_KEY_S:
-                saveImage();
+                showGui = !showGui;
                 break;
             case GLFW_KEY_SPACE:
                 camchanged = true;

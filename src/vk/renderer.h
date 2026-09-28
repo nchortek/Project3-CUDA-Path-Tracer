@@ -45,6 +45,18 @@ public:
         m_pushConstants.camera = camera;
     }
 
+    void setDepthOfField(bool enabled)
+    {
+        if (enabled)
+        {
+            m_pushConstants.flags |= gpu::kFlagDepthOfField;
+        }
+        else
+        {
+            m_pushConstants.flags &= ~gpu::kFlagDepthOfField;
+        }
+    }
+
     void setMaxTraceDepth(uint32_t maxDepth)
     {
         m_pushConstants.maxDepth = maxDepth;

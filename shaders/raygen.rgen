@@ -48,11 +48,14 @@ void main()
 
     vec3 origin = pc.camera.position;
 
-    vec3 focalPoint = origin + direction * (kFocalDistance / dot(direction, pc.camera.view));
-    vec2 diskSample = squareToDiskConcentric(vec2(rng(), rng())).xy;
-    vec3 pointOnLens = origin + (diskSample.x * kLensRadius * pc.camera.right) + (diskSample.y * kLensRadius * pc.camera.up);
-    direction = normalize(focalPoint - pointOnLens);
-    origin = pointOnLens;
+    if ((pc.flags & kFlagDepthOfField) != 0u)
+    {
+        vec3 focalPoint = origin + direction * (kFocalDistance / dot(direction, pc.camera.view));
+        vec2 diskSample = squareToDiskConcentric(vec2(rng(), rng())).xy;
+        vec3 pointOnLens = origin + (diskSample.x * kLensRadius * pc.camera.right) + (diskSample.y * kLensRadius * pc.camera.up);
+        direction = normalize(focalPoint - pointOnLens);
+        origin = pointOnLens;
+    }
 
     vec3 sampleColor = Li_Naive(Ray(origin, direction));
 

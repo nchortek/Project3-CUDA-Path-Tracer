@@ -61,7 +61,7 @@ GPU_CONST uint kSpecGlass = 4;
 GPU_CONST uint kMicrofacetRefl = 5;
 
 // Constants for flags
-// NCHORTEK TODO
+GPU_CONST uint kFlagDepthOfField = 0x1u;
 
 // Misc.
 GPU_CONST uint kInstanceMaskAllBitsSet = 0xFFu;
