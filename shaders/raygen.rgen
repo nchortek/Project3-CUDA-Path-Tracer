@@ -40,7 +40,6 @@ void main()
     const vec2 jitteredPixel = vec2(pixelCoord) + vec2(rng(), rng());
     const vec2 halfResolution = vec2(gl_LaunchSizeEXT.xy) * 0.5;
 
-    // NCHORTEK TODO: This needs to be consistent with saveImage pixel calcs
     vec3 direction = normalize(
         pc.camera.view
         + pc.camera.right * pc.camera.pixelLength.x * (jitteredPixel.x - halfResolution.x)

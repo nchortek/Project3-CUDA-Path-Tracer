@@ -41,18 +41,4 @@ float squareToHemisphereCosinePDF(vec3 sampleVec)
     return abs(sampleVec.z) * kInvPi;
 }
 
-vec3 squareToSphereUniform(vec2 sampleVec)
-{
-    float z = 1.f - (2.f * sampleVec.x);
-    float x = cos(2.f * kPi * sampleVec.y) * sqrt(1.f - (z * z));
-    float y = sin(2.f * kPi * sampleVec.y) * sqrt(1.f - (z * z));
-
-    return vec3(x, y, z);
-}
-
-float squareToSphereUniformPDF(vec3 sampleVec)
-{
-    return kInvFourPi;
-}
-
 #endif

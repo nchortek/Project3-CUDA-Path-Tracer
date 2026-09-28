@@ -3,14 +3,8 @@
 
 // Numeric constants
 const float kPi = 3.14159265358979323;
-const float kTwoPi = 6.28318530717958648;
-const float kFourPi = 12.5663706143591729;
 const float kInvPi = 0.31830988618379067;
-const float kInvTwoPi = 0.15915494309;
-const float kInvFourPi = 0.07957747154594767;
 const float kHalfPi = 1.57079632679489662;
-const float kOneThird = 0.33333333333333333;
-const float kE = 2.71828182845904524;
 const float kOneMinusEpsilon = 0.99999994;
 const float kFloatEqualityEpsilon = 0.000005;
 
@@ -23,62 +17,6 @@ struct Ray {
 float absDot(vec3 a, vec3 b)
 {
     return abs(dot(a, b));
-}
-
-float cosTheta(vec3 w)
-{
-    return w.z;
-}
-
-float cos2Theta(vec3 w)
-{ 
-    return w.z * w.z;
-
-}
-float absCosTheta(vec3 w)
-{ 
-    return abs(w.z);
-}
-
-float sin2Theta(vec3 w)
-{
-    return max(0.f, 1.f - cos2Theta(w));
-}
-float sinTheta(vec3 w)
-{ 
-    return sqrt(sin2Theta(w));
-}
-
-float tanTheta(vec3 w)
-{ 
-    return sinTheta(w) / cosTheta(w);
-}
-
-float tan2Theta(vec3 w)
-{
-    return sin2Theta(w) / cos2Theta(w);
-}
-
-float cosPhi(vec3 w)
-{
-    float st = sinTheta(w);
-    return (st == 0) ? 1 : clamp(w.x / st, -1.f, 1.f);
-}
-
-float sinPhi(vec3 w)
-{
-    float st = sinTheta(w);
-    return (st == 0) ? 0 : clamp(w.y / st, -1.f, 1.f);
-}
-
-float cos2Phi(vec3 w)
-{ 
-    return cosPhi(w) * cosPhi(w);
-}
-
-float sin2Phi(vec3 w)
-{ 
-    return sinPhi(w) * sinPhi(w);
 }
 
 Ray spawnRay(vec3 pos, vec3 wi)
@@ -109,11 +47,6 @@ vec3 faceForward(vec3 n, vec3 v)
     return (dot(n, v) < 0.f) ? -n : n;
 }
 
-bool sameHemisphere(vec3 w, vec3 wp)
-{
-    return w.z * wp.z > 0;
-}
-
 void coordinateSystem(vec3 v1, out vec3 v2, out vec3 v3)
 {
     if (abs(v1.x) > abs(v1.y))
@@ -135,19 +68,9 @@ mat3 worldToLocal(vec3 nor)
     return transpose(localToWorld(nor));
 }
 
-float distanceSquared(vec3 p1, vec3 p2)
-{
-    return dot(p1 - p2, p1 - p2);
-}
-
 bool areEqual(float x, float y)
 {
     return abs(x - y) < kFloatEqualityEpsilon;
-}
-
-vec3 getPointOnRay(Ray ray, float t)
-{
-    return ray.origin + t * ray.direction;
 }
 
 #endif

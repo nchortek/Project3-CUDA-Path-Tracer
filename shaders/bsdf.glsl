@@ -41,7 +41,6 @@ vec3 sample_f_specular_trans(vec3 albedo, float ior, vec3 nor, vec3 wo,
     wiW = vec3(0.f);
     sampledType = kSpecTrans;
 
-    // Hard-coded to index of refraction of glass
     const float etaA = 1.;
 
     // wo.z == dot(wo, vec3(0.f, 0.f, 1.f))
@@ -67,8 +66,6 @@ vec3 sample_f_specular_trans(vec3 albedo, float ior, vec3 nor, vec3 wo,
 
 vec3 fresnelDielectricEval(float cosThetaI, float ior)
 {
-    // We will hard-code the indices of refraction to be
-    // those of glass
     float etaI = 1.;
     cosThetaI = clamp(cosThetaI, -1.f, 1.f);
 
@@ -94,7 +91,7 @@ vec3 fresnelDielectricEval(float cosThetaI, float ior)
     return vec3(eval);
 }
 
-vec3 sample_f_glass(vec3 albedo, float ior, vec3 nor, vec2 xi, vec3 wo,
+vec3 sample_f_glass(vec3 albedo, float ior, vec3 nor, vec3 wo,
     out vec3 wiW, out uint sampledType)
 {
     float random = rng();
@@ -212,7 +209,7 @@ vec3 sample_f(SurfaceInteraction surface, vec3 woW, vec2 xi,
     else if (surface.material.type == kSpecGlass)
     {
         bsdfPdf = 1.;
-        return sample_f_glass(computeAlbedo(surface), computeIor(surface), nor, xi, wo, wiW, sampledType);
+        return sample_f_glass(computeAlbedo(surface), computeIor(surface), nor, wo, wiW, sampledType);
     }
     // Default case, unhandled material
     else
