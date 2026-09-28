@@ -282,8 +282,8 @@ int main(int argc, char** argv)
     width = cam.resolution.x;
     height = cam.resolution.y;
 
-    glm::vec3 view = cam.view;
-    glm::vec3 up = cam.up;
+    glm::vec3 view = glm::normalize(cam.view);
+    glm::vec3 up = glm::normalize(cam.up);
 
     cameraPosition = cam.position;
 
@@ -363,8 +363,8 @@ void updateCamera()
         cam.view = -glm::normalize(cameraPosition);
         glm::vec3 v = cam.view;
         glm::vec3 u = glm::vec3(0, 1, 0);//glm::normalize(cam.up);
-        glm::vec3 r = glm::cross(v, u);
-        cam.up = glm::cross(r, v);
+        glm::vec3 r = glm::normalize(glm::cross(v, u));
+        cam.up = glm::normalize(glm::cross(r, v));
         cam.right = r;
 
         cam.position = cameraPosition;

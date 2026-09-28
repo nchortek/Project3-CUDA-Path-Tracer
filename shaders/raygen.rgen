@@ -7,6 +7,7 @@
 #include "rng.glsl"
 #include "math.glsl"
 #include "bsdf.glsl"
+#include "sampleWarping.glsl"
 
 layout(set = kRendererDescriptorSet, binding = kTLASBinding) uniform accelerationStructureEXT TLAS;
 layout(set = kRendererDescriptorSet, binding = kAccumImageBinding, rgba32f) uniform image2D accumImage;
@@ -25,6 +26,10 @@ layout(location = 0) rayPayloadEXT IntersectionInfo payload;
 SurfaceInteraction sceneIntersect(Ray ray);
 vec3 Li_Naive(Ray ray);
 
+// Constants for depth of field
+const float kFocalDistance = 11.5;
+const float kLensRadius = 0.5;
+
 void main()
 {
     initSeed(gl_LaunchIDEXT, gl_LaunchSizeEXT, pc.renderedFrameCount);
@@ -36,12 +41,18 @@ void main()
     const vec2 halfResolution = vec2(gl_LaunchSizeEXT.xy) * 0.5;
 
     // NCHORTEK TODO: This needs to be consistent with saveImage pixel calcs
-    const vec3 direction = normalize(
+    vec3 direction = normalize(
         pc.camera.view
         + pc.camera.right * pc.camera.pixelLength.x * (jitteredPixel.x - halfResolution.x)
         - pc.camera.up * pc.camera.pixelLength.y * (jitteredPixel.y - halfResolution.y));
 
-    const vec3 origin = pc.camera.position;
+    vec3 origin = pc.camera.position;
+
+    vec3 focalPoint = origin + direction * (kFocalDistance / dot(direction, pc.camera.view));
+    vec2 diskSample = squareToDiskConcentric(vec2(rng(), rng())).xy;
+    vec3 pointOnLens = origin + (diskSample.x * kLensRadius * pc.camera.right) + (diskSample.y * kLensRadius * pc.camera.up);
+    direction = normalize(focalPoint - pointOnLens);
+    origin = pointOnLens;
 
     vec3 sampleColor = Li_Naive(Ray(origin, direction));
 
