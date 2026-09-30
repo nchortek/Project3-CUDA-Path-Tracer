@@ -7,8 +7,6 @@ CUDA Path Tracer
   * [LinkedIn](https://www.linkedin.com/in/nathan-chortek/), [personal website](https://www.nathanchortek.com/)
 * Tested on: Windows 11, AMD Ryzen AI 9 HX 370, NVIDIA GeForce RTX 5090 Laptop GPU
 
-### Late Days Used: 4 (Code due 10/5, README due 10/7)
-
 ### (TODO: Your README)
 
 *DO NOT* leave the README to the last minute! It is a crucial part of the
