@@ -25,6 +25,11 @@ layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer Mat
     GpuMaterial materials[];
 };
 
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer LightBuffer
+{
+    EmissiveTri lights[];
+};
+
 layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer SceneAddressesBuffer
 {
     SceneAddresses deviceAddresses;
@@ -34,6 +39,7 @@ layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Sce
 const float kMiss = -1.0;
 const float kTMin = 0.001;
 const float kTMax = 10000.0;
+const float kShadowRayEpsilon = 0.00001;
 const GpuMaterial kEmptyMaterial = GpuMaterial(
     vec3(0.0),
     0u,

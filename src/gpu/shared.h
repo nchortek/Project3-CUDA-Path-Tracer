@@ -58,7 +58,6 @@ GPU_CONST uint kDiffuseRefl = 1;
 GPU_CONST uint kSpecRefl = 2;
 GPU_CONST uint kSpecTrans = 3;
 GPU_CONST uint kSpecGlass = 4;
-GPU_CONST uint kMicrofacetRefl = 5;
 
 // Constants for flags
 GPU_CONST uint kFlagDepthOfField = 0x1u;
@@ -109,6 +108,16 @@ struct GpuMaterial
     float transmission;
 };
 
+struct EmissiveTri
+{
+    vec3 v0;
+    vec3 v1;
+    vec3 v2;
+    uint materialIndex;
+    float area;
+    float cdf;
+};
+
 // Device Buffer Addresses for our scene buffers
 struct SceneAddresses
 {
@@ -123,7 +132,11 @@ struct SceneAddresses
 
     // Starting address of our buffer of GpuMaterial structs
     uint64_t materialsAddr;
-    // NCHORTEK TODO: This will grow when we add lights
+    
+    // Starting address of our buffer of EmissiveTri structs
+    uint64_t lightsAddr;
+    uint lightCount;
+    float totalLightArea;
 };
 
 struct CameraParams

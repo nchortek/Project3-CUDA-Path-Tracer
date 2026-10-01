@@ -14,7 +14,7 @@ bool GpuScene::init(VulkanContext& context, const sceneutil::FlatScene& flatScen
         return false;
     }
 
-    if (!createSceneAddressesBuffer())
+    if (!createSceneAddressesBuffer(static_cast<uint32_t>(flatScene.lights.size()), flatScene.totalLightArea))
     {
         destroy();
         return false;
@@ -55,6 +55,7 @@ void GpuScene::destroy()
     vkutil::destroyBuffer(*m_context, m_indexBuffer);
     vkutil::destroyBuffer(*m_context, m_geometryBuffer);
     vkutil::destroyBuffer(*m_context, m_materialBuffer);
+    vkutil::destroyBuffer(*m_context, m_lightBuffer);
     vkutil::destroyBuffer(*m_context, m_sceneAddressesBuffer);
 
     m_context = nullptr;
@@ -106,16 +107,31 @@ bool GpuScene::createSceneDataBuffers(const sceneutil::FlatScene& flatScene)
         return false;
     }
 
+    if (!flatScene.lights.empty()
+        && !vkutil::createAndUploadBuffer(
+            *m_context,
+            flatScene.lights.data(),
+            flatScene.lights.size() * sizeof(gpu::EmissiveTri),
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            m_lightBuffer))
+    {
+        fprintf(stderr, "Failed to create the light buffer on the GPU.\n");
+        return false;
+    }
+
     return true;
 }
 
-bool GpuScene::createSceneAddressesBuffer()
+bool GpuScene::createSceneAddressesBuffer(uint32_t lightCount, float totalLightArea)
 {
     gpu::SceneAddresses sceneAddresses{};
     sceneAddresses.verticesAddr = m_vertexBuffer.deviceAddress;
     sceneAddresses.indicesAddr = m_indexBuffer.deviceAddress;
     sceneAddresses.geometriesAddr = m_geometryBuffer.deviceAddress;
     sceneAddresses.materialsAddr = m_materialBuffer.deviceAddress;
+    sceneAddresses.lightsAddr = m_lightBuffer.deviceAddress;
+    sceneAddresses.lightCount = lightCount;
+    sceneAddresses.totalLightArea = totalLightArea;
 
     if (!vkutil::createAndUploadBuffer(
         *m_context,

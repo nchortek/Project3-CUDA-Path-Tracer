@@ -38,7 +38,8 @@ namespace sceneutil
         size_t oldGeometryCount = flatScene.geometries.size();
         flatScene.instanceFirstGeometry.push_back(static_cast<uint32_t>(oldGeometryCount));
         flatScene.instances.push_back(instance);
-         
+        
+        bool isLight = glm::length(flatScene.materials.at(instance.materialId).emissionColor) > 0.0;
         const std::vector<MeshPrimitiveRange>& primitiveRanges = flatScene.meshRanges.at(instance.meshIndex);
         for (const MeshPrimitiveRange& range : primitiveRanges)
         {
@@ -48,6 +49,52 @@ namespace sceneutil
             geomInfo.materialIndex = instance.materialId;
 
             flatScene.geometries.push_back(geomInfo);
+
+            if (isLight)
+            {
+                for (uint32_t i = 0; i < range.indexCount / 3; i++)
+                {
+                    gpu::EmissiveTri light{};
+
+                    light.v0 = glm::vec3(
+                        instance.modelMatrix
+                        * glm::vec4(
+                            flatScene.vertices.at(
+                                geomInfo.vertexOffset
+                                + flatScene.indices.at(
+                                    geomInfo.indexOffset
+                                    + (3 * i)
+                                    + 0)).position, 1.0));
+
+                    light.v1 = glm::vec3(
+                        instance.modelMatrix
+                        * glm::vec4(
+                            flatScene.vertices.at(
+                                geomInfo.vertexOffset
+                                + flatScene.indices.at(
+                                    geomInfo.indexOffset
+                                    + (3 * i)
+                                    + 1)).position, 1.0));
+
+                    light.v2 = glm::vec3(
+                        instance.modelMatrix
+                        * glm::vec4(
+                            flatScene.vertices.at(
+                                geomInfo.vertexOffset
+                                + flatScene.indices.at(
+                                    geomInfo.indexOffset
+                                    + (3 * i)
+                                    + 2)).position, 1.0));
+
+                    glm::vec3 edge1 = light.v1 - light.v0;
+                    glm::vec3 edge2 = light.v2 - light.v0;
+                    light.area = glm::length(glm::cross(edge1, edge2)) * 0.5;
+
+                    light.materialIndex = instance.materialId;
+
+                    flatScene.lights.push_back(light);
+                }
+            }
         }
     }
 
@@ -105,6 +152,26 @@ namespace sceneutil
         for (const MeshInstance& instance : scene.meshInstances)
         {
             addMeshInstance(instance, flatScene);
+        }
+
+        float totalArea = 0;
+        for (const gpu::EmissiveTri& light : flatScene.lights)
+        {
+            totalArea += light.area;
+        }
+
+        flatScene.totalLightArea = totalArea;
+
+        if (totalArea > 0)
+        {
+            float runningAreaSum = 0;
+            for (gpu::EmissiveTri& light : flatScene.lights)
+            {
+                runningAreaSum += light.area;
+                light.cdf = runningAreaSum / totalArea;
+            }
+
+            flatScene.lights.back().cdf = 1;
         }
 
         return flatScene;

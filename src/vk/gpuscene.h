@@ -46,6 +46,7 @@ private:
     vkutil::Buffer m_indexBuffer{};
     vkutil::Buffer m_geometryBuffer{};
     vkutil::Buffer m_materialBuffer{};
+    vkutil::Buffer m_lightBuffer{};
     vkutil::Buffer m_sceneAddressesBuffer{};
 
     struct AccelStructure
@@ -75,5 +76,5 @@ private:
     void destroyAccelStructure(AccelStructure& accelStructure);
 
     bool createSceneDataBuffers(const sceneutil::FlatScene& flatScene);
-    bool createSceneAddressesBuffer();
+    bool createSceneAddressesBuffer(uint32_t lightCount, float totalLightArea);
 };

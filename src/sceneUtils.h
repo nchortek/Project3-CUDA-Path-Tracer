@@ -33,6 +33,8 @@ namespace sceneutil
         std::vector<uint32_t> indices;
         std::vector<gpu::GeometryInfo> geometries;
         std::vector<gpu::GpuMaterial> materials;
+        std::vector<gpu::EmissiveTri> lights;
+        float totalLightArea;
 
         // Indexed like [meshIndex][primitiveIndex]
         std::vector<std::vector<MeshPrimitiveRange>> meshRanges;
