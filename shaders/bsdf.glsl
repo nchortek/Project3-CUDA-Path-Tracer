@@ -246,4 +246,18 @@ float pdf(SurfaceInteraction surface, vec3 woW, vec3 wiW)
     }
 }
 
+float powerHeuristic(int nf, float fPdf, int ng, float gPdf)
+{
+    float f = nf * fPdf;
+    float g = ng * gPdf;
+    return (f * f) / ((f * f) + (g * g));
+}
+
+float pdf_li(float dist, vec3 lightGeometricNor, vec3 wiW, float totalLightArea)
+{
+    float cosLight = absDot(lightGeometricNor, wiW);
+    float denom = totalLightArea * cosLight;
+    return (denom <= 0.0) ? 0.0 : ((dist * dist) / denom);
+}
+
 #endif

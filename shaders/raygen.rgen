@@ -26,6 +26,7 @@ layout(location = 0) rayPayloadEXT IntersectionInfo payload;
 SurfaceInteraction sceneIntersect(Ray ray);
 vec3 li_naive(Ray ray);
 vec3 li_direct(Ray ray);
+vec3 li_mis(Ray ray);
 vec3 sample_li(vec3 viewPoint, vec3 faceForwardGeometricNor, out vec3 wiW, out float lightPdf);
 
 // Constants for depth of field
@@ -59,7 +60,8 @@ void main()
     }
 
     //vec3 sampleColor = li_naive(Ray(origin, direction));
-    vec3 sampleColor = li_direct(Ray(origin, direction));
+    //vec3 sampleColor = li_direct(Ray(origin, direction));
+    vec3 sampleColor = li_mis(Ray(origin ,direction));
 
     if (pc.renderedFrameCount > 0)
     {
@@ -303,6 +305,113 @@ vec3 li_direct(Ray ray)
     return accumulated_light;
 }
 
+vec3 li_mis(Ray ray)
+{
+    SceneAddresses sceneAddresses = SceneAddressesBuffer(pc.sceneAddr).deviceAddresses;
+
+    // The light energy our ray has gathered along its path
+    vec3 accumulated_light = vec3(0.f);
+
+    // The light-dampening effect that the surfaces our ray has visited
+    // have applied to the ray's ability to transmit energy back to the camera.
+    // Need to "remember" the surfaces our ray has hit so that we can appropriately
+    // attenuate the color of a light source that we hit.
+    vec3 throughput = vec3(1.f);
+
+    bool lastBounceWasSpecular = true;
+    float prevBsdfPdf = 0.0;
+
+    for (uint i = 0; i < pc.maxDepth; i++)
+    {
+        vec3 woW = -1.f * ray.direction;
+        SurfaceInteraction surface = sceneIntersect(ray);
+
+        if (surface.isect.t == kMiss)
+        {
+            // Terminate the path on-miss
+            break;
+        }
+
+        // If we've hit an emissive surface, we will terminate
+        // the ray as we will pretend that light sources have
+        // no ability to scatter light, only emit it.
+        if (length(surface.material.emissionColor) > 0.0)
+        {
+            float misWeight = 1.0;
+            if (!lastBounceWasSpecular)
+            {
+                float lightPdf = pdf_li(surface.isect.t, surface.isect.worldGeometricNor, ray.direction, sceneAddresses.totalLightArea);
+                misWeight = powerHeuristic(1, prevBsdfPdf, 1, lightPdf);
+            }
+
+            accumulated_light += misWeight * surface.material.emissionColor * throughput;
+            break;
+        }
+
+        bool isSpecular = surface.material.type == kSpecTrans
+            || surface.material.type == kSpecGlass
+            || surface.material.type == kSpecRefl;
+
+        if (!isSpecular && (i + 1 < pc.maxDepth))
+        {
+            vec3 wiW_light;
+            float lightPdf;
+            vec3 le = sample_li(surface.isect.worldPos, surface.faceForwardGeometricNor, wiW_light, lightPdf);
+
+            if (lightPdf > 0.0)
+            {
+                float bsdfPdfLight = pdf(surface, woW, wiW_light);
+                float misWeight = powerHeuristic(1, lightPdf, 1, bsdfPdfLight);
+
+                accumulated_light += misWeight
+                    * throughput
+                    * f(surface, woW, wiW_light)
+                    * le
+                    * absDot(wiW_light, surface.isect.worldShadingNor)
+                    / lightPdf;
+            }
+        }
+
+        vec3 wiW;
+        float bsdfPdf;
+        uint sampledType;
+
+        vec2 xi = vec2(rng(), rng());
+        vec3 bsdf = sample_f(surface, woW, xi, wiW, bsdfPdf, sampledType);
+
+        if (bsdfPdf == 0.0 || bsdf == vec3(0.0))
+        {
+            // Terminate the path if we encounter an invalid sample
+            break;
+        }
+
+        if (surface.material.type != kSpecTrans
+            && surface.material.type != kSpecGlass
+            && dot(wiW, surface.faceForwardGeometricNor) <= 0.0)
+        {
+            // For non-transmissive types, terminate the path if the
+            // sample doesn't point away from the front of the surface
+            break;
+        }
+
+        float lambert = absDot(wiW, surface.isect.worldShadingNor);
+
+        // Record the "memory" of the surface our ray has hit in
+        // the ray's overall throughput.
+        throughput *= bsdf * lambert / bsdfPdf;
+
+        lastBounceWasSpecular = isSpecular;
+        prevBsdfPdf = bsdfPdf;
+
+        // To scatter our ray somewhere new, update its origin and direction
+        ray = spawnRay(surface.isect.worldPos, wiW);
+
+        // Now the loop repeats, and we intersect this new ray with the scene.
+    }
+
+    return accumulated_light;
+}
+
 vec3 sample_li(vec3 viewPoint, vec3 faceForwardGeometricNor, out vec3 wiW, out float lightPdf)
 {
     wiW = vec3(0.0);
@@ -375,15 +484,7 @@ vec3 sample_li(vec3 viewPoint, vec3 faceForwardGeometricNor, out vec3 wiW, out f
     }
 
     vec3 lightNor = normalize(cross(light.v1 - light.v0, light.v2 - light.v0));
-    float cosLight = abs(dot(lightNor, wiW));
-    float denom = sceneAddresses.totalLightArea * cosLight;
-
-    if (denom <= 0.0)
-    {
-        return vec3(0.0);
-    }
-
-    lightPdf = r * r / denom;
+    lightPdf = pdf_li(r, lightNor, wiW, sceneAddresses.totalLightArea);
 
     return MaterialBuffer(sceneAddresses.materialsAddr).materials[light.materialIndex].emissionColor;
 }
