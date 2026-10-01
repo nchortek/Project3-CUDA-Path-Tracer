@@ -34,7 +34,7 @@ namespace sceneutil
         std::vector<gpu::GeometryInfo> geometries;
         std::vector<gpu::GpuMaterial> materials;
         std::vector<gpu::EmissiveTri> lights;
-        float totalLightArea;
+        float totalLightArea = 0;
 
         // Indexed like [meshIndex][primitiveIndex]
         std::vector<std::vector<MeshPrimitiveRange>> meshRanges;
