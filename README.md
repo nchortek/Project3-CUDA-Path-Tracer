@@ -14,6 +14,7 @@ CUDA Path Tracer
 NCHORTEK TODO
 - Detail CMake Changes
 - Describe required environment variables and third party libraries / downloads
+- Describe how to run with different scenes (without editing the CMake file)
 
 ## Features Implemented
 
