@@ -7,10 +7,18 @@ CUDA Path Tracer
   * [LinkedIn](https://www.linkedin.com/in/nathan-chortek/), [personal website](https://www.nathanchortek.com/)
 * Tested on: Windows 11, AMD Ryzen AI 9 HX 370, NVIDIA GeForce RTX 5090 Laptop GPU
 
-### (TODO: Your README)
+<img source=img/cover.png/>
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+## Build Instructions
+
+## Features Implemented
+
+## Performance Analysis
+
+### Closed vs Open Scene
+
+### MIS vs 
+
 
 ## References
 
