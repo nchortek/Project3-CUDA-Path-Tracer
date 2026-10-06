@@ -11,21 +11,72 @@ CUDA Path Tracer
 
 ## Build Instructions
 
-NCHORTEK TODO
-- Detail CMake Changes
-- Describe required environment variables and third party libraries / downloads
-- Describe how to run with different scenes (without editing the CMake file)
+### Requirements
+
+- Windows with Visual Studio and CMake 3.24+
+- A GPU and driver supporting Vulkan 1.3 with `VK_KHR_acceleration_structure` and `VK_KHR_ray_tracing_pipeline`
+- The [Vulkan SDK](https://vulkan.lunarg.com/) (tested with 1.4.328). Its installer sets the `VULKAN_SDK` environment variable, which CMake uses to find the Vulkan headers and the `glslc` shader compiler. No other environment variables are needed.
+
+All other dependencies are vendored in `external/` (versions in `external/VERSIONS.md`): volk, vk-bootstrap, Vulkan Memory Allocator, Dear ImGui, GLFW, GLM, nlohmann/json and stb.
+
+### CMake changes
+
+- CUDA is removed entirely; the project is plain C/C++17 and links against the vendored libraries above.
+- Vulkan is loaded at runtime through volk, so only the Vulkan headers are needed at build time.
+- Shaders in `shaders/` are compiled from GLSL to SPIR-V by `glslc` as part of the build. Include dependencies are tracked, so editing a shared `.glsl` file or `src/gpu/shared.h` recompiles every shader that uses it. The output directory is compiled into the executable, so shaders are found regardless of working directory.
+- The Visual Studio debugger is preconfigured to run from the repository root with `scenes/cornellGlassSphere.json` as the default scene.
+
+### Building and running
+
+    cmake -B build
+    cmake --build build --config Release
+
+The scene file is the program's only argument. To change it in Visual Studio, open the project's 
+**Properties --> Configuration Properties --> Debugging** and edit **Command Arguments** (e.g. 
+`scenes/funhouseClosed.json`). Alternatively, run the executable from the repository root:
+
+    build\bin\Release\cis565_path_tracer.exe scenes\crystalTable.json
 
 ## Features Implemented
 
 ### Vulkan Hardware-Accelerated Ray Tracing (RT)
 
-NCHORTEK TODO
-- Overview write-up of the feature --> TLAS, BLAS, SBT, plus the core shaders: Raygen, Closest Hit, Miss
-- Performance impact of the feature.
-- If you did something to accelerate the feature, what did you do and why? --> Push Constants, Buffer Device Address
-- Compare your GPU version of the feature to a HYPOTHETICAL CPU version (you don't have to implement it!). Does it benefit or suffer from being implemented on the GPU? --> Yes of course, the HW was literally made for this.
-- How might this feature be optimized beyond your current implementation? --> SER
+The path tracer is built on the Vulkan ray tracing pipeline rather than CUDA kernels, so ray-scene 
+intersection runs on the GPU's dedicated ray tracing hardware.
+
+**Acceleration structures.** Each unique mesh gets one bottom-level acceleration structure (BLAS) 
+holding its triangles. A single top-level acceleration structure (TLAS) holds one instance per scene 
+object, each pairing a BLAS with that object's transform. Objects that share a mesh share a BLAS, 
+and each instance carries an index into a geometry table so that they can still use different materials.
+
+**Shaders.** The pipeline has three shaders, each with one record in the shader binding table (SBT), 
+which is how the pipeline finds the shader to run for a given ray:
+
+- **Raygen** runs once per pixel and owns the entire path: it generates the camera ray, runs the integrator loop, accumulates the result, and writes the tone-mapped display image. Bounces are iterated in a loop, so the pipeline's recursion depth is 1.
+- **Closest hit** does no shading. It fetches the hit triangle's vertices, interpolates position, normals and UVs, and returns them with the material index in the ray payload.
+- **Miss** marks the payload as a miss. Shadow rays skip the closest-hit shader and stop at the first hit, so for them this is the only shader that runs.
+
+**Reducing per-frame overhead.** Everything that changes per frame (e.g. camera, frame count, max depth, 
+feature flags) is passed as an 80-byte push constant block, so no uniform buffers or descriptor sets 
+are updated between frames. Scene data (e.g. vertices, indices, geometry table, materials, lights) is reached 
+through buffer device addresses: the push constants carry one 64-bit address of a small buffer that 
+holds the addresses of the rest. The descriptor set contains only the TLAS and the two output images.
+
+**Performance impact.** Hardware traversal replaces a brute-force intersection test against every object 
+with a driver-built BVH, so cost grows roughly logarithmically with triangle count. Because each path runs 
+to completion inside one raygen invocation, there is no path state to store between bounces and no stream 
+compaction or material sorting pass. At 1920x1080 with a maximum depth of 16, the test scenes run between 
+114 and 713 FPS (one sample per pixel per frame).
+
+**Compared to a CPU implementation.** Path tracing benefits heavily from the GPU: every pixel's path is 
+independent, and a 1080p frame is about two million of them. A CPU would trace them on a few dozen threads 
+with software BVH traversal, while the GPU runs them in parallel with traversal and triangle intersection 
+handled by hardware built for that purpose.
+
+**Future optimization.** After the first bounce, neighboring pixels hit different materials and take different 
+branches, which hurts GPU efficiency. Shader execution reordering (SER) would help address this by letting raygen 
+regroup rays by a hint, such as material type, before shading. The application already detects and enables 
+`VK_NV_ray_tracing_invocation_reorder` when the device supports it, but the shaders do not utilize it yet.
 
 ### Refraction & Dielectric Materials
 
