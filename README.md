@@ -80,16 +80,23 @@ regroup rays by a hint, such as material type, before shading. The application a
 
 ### Refraction & Dielectric Materials
 
-Cornell Box (Open), 5000 Iterations, Max Depth 16
+Cornell Box (Open) w/ Diffuse Materials, 5000 Iterations, Max Depth 16
 
 <img src="img/cornellOpen.png">
 
-Cornell Box w/ Glass Sphere and Mirror Wall (Open), 5000 Iterations, Max Depth 16
+Cornell Box (Open) w/ Glass Sphere and Mirror Wall, 5000 Iterations, Max Depth 16
 
 <img src="img/cornellGlassSphereOpen.png">
 
-NCHORTEK TODO
-- Overview write-up of the feature
+Glass is modeled as a combination of perfect specular reflection and perfect specular transmission. At each hit, 
+one of the two is chosen with equal probability and its contribution is doubled to compensate. The result is weighted 
+by the Fresnel reflectance for dielectrics, so glass reflects more at grazing angles and transmits more when viewed 
+head-on.
+
+Transmitted rays are bent according to Snell's law using the material's index of refraction, which is set per material 
+in the scene file. Whether a ray is entering or leaving the object is determined from which side of the surface it arrives 
+on, and total internal reflection is handled when a ray inside the glass cannot exit. The material's color tints the light 
+passing through, which produces the colored glass in the Funhouse and Crystal Table scenes.
 
 ### Physically-Based Depth-of-Field (DOF)
 
@@ -101,8 +108,14 @@ Funhouse (Open) w/ DOF, 5000 Iterations, Max Depth 16
 
 <img src="img/funhouseOpenDOF.png">
 
-NCHORTEK TODO
-- Overview write-up of the feature
+Depth of field uses a thin-lens camera model in place of the default pinhole. For each camera ray, the point where the 
+pinhole ray crosses the focal plane is computed first. The ray origin is then moved to a random point on a circular lens, 
+and the ray is re-aimed at that focal point.
+
+Objects at the focal distance stay sharp because every lens sample converges on the same point, while objects nearer or 
+farther are blurred in proportion to their distance from the focal plane. Averaging over many iterations produces the 
+smooth blur shown above. The lens radius and focal distance are constants in the raygen shader, and the effect can be 
+toggled at runtime from the GUI.
 
 ### Direct Lighting & Multiple Importance Sampling (MIS)
 
