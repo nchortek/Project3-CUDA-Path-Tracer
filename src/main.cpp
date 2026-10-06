@@ -216,15 +216,17 @@ void mainLoop()
 
         updateCamera();
 
+        int frameCount = static_cast<int>(renderer->getRenderedFrameCount());
         std::string title = "CIS565 Path Tracer | " 
-            + utilityCore::convertIntToString(static_cast<int>(renderer->getRenderedFrameCount())) 
+            + utilityCore::convertIntToString(frameCount) 
             + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
 
         // Render ImGui Stuff
         RenderImGui();
 
-        if (!renderer->drawFrame())
+        if (frameCount < static_cast<int>(renderState->iterations)
+            && !renderer->drawFrame())
         {
             fprintf(stderr, "drawFrame() call failed.\n");
             glfwSetWindowShouldClose(window, GLFW_TRUE);

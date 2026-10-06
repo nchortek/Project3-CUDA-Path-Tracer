@@ -7,7 +7,7 @@ CUDA Path Tracer
   * [LinkedIn](https://www.linkedin.com/in/nathan-chortek/), [personal website](https://www.nathanchortek.com/)
 * Tested on: Windows 11, AMD Ryzen AI 9 HX 370, NVIDIA GeForce RTX 5090 Laptop GPU
 
-<img src=img/cover.png/>
+<img src="img/cover.png">
 
 ## Build Instructions
 
@@ -29,35 +29,88 @@ NCHORTEK TODO
 
 ### Refraction & Dielectric Materials
 
+Cornell Box (Open), 5000 Iterations, Max Depth 16
+
+<img src="img/cornellOpen.png">
+
+Cornell Box w/ Glass Sphere and Mirror Wall (Open), 5000 Iterations, Max Depth 16
+
+<img src="img/cornellGlassSphereOpen.png">
+
 NCHORTEK TODO
-- Before/After images
 - Overview write-up of the feature
 
-### Physically-Based Depth-of-Field
+### Physically-Based Depth-of-Field (DOF)
+
+Funhouse (Open) w/o DOF, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseOpen.png">
+
+Funhouse (Open) w/ DOF, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseOpenDOF.png">
 
 NCHORTEK TODO
-- Before/After images
 - Overview write-up of the feature
 
 ### Direct Lighting & Multiple Importance Sampling (MIS)
 
+Crystal Table (Open), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableOpenNaive.png">
+
+Crystal Table (Open), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableOpenMIS.png">
+
 NCHORTEK TODO
-- Before/After images
 - Overview write-up of the feature --> Describe the light CDF/PDF, describe what MIS does at a high-level and why we want to combine bsdf and snap-to-light sampling methods rather than just picking one for direct light contribution, describe why direct light sampling is beneficial over naive path tracing where the only light contribution comes from a ray terminating after intersecting a light.
 
 ## Performance Analysis
 
 ### Naive Path Tracing
 
+Crystal Table (Closed), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableClosedNaive.png">
+
+Crystal Table (Open), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableOpenNaive.png">
+
+Funhouse (Closed), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseClosedNaive.png">
+
+Funhouse (Open), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseOpenNaive.png">
+
 NCHORTEK TODO
-- Show images and describe the causes for noise differences in closed vs open scenes
-- Show images and describe the causes for FPS differences in closed vs open scenes
+- Describe the causes for noise differences in closed vs open scenes
+- Describe the causes for FPS differences in closed vs open scenes
 
 ### Direct Lighting & Multiple Importance Sampling (MIS)
 
+Crystal Table (Closed), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableClosedMIS.png">
+
+Crystal Table (Open), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/crystalTableOpenMIS.png">
+
+Funhouse (Closed), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseClosedMIS.png">
+
+Funhouse (Open), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseOpenMIS.png">
+
 NCHORTEK TODO
-- Show images and describe the causes for noise differences in closed vs open scenes
-- Show images and describe the causes for FPS differences in closed vs open scenes
+- Describe the causes for noise differences in closed vs open scenes
+- Describe the causes for FPS differences in closed vs open scenes
 
 ## References
 
