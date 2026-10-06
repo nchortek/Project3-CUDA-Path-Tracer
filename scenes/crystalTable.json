@@ -149,7 +149,7 @@
         {
             "TYPE":"sphere",
             "MATERIAL":"matteBlue",
-            "TRANS":[3.0,-2.5,-3.0],
+            "TRANS":[2.5,-2.5,-3.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
         },

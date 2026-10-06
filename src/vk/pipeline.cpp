@@ -73,7 +73,6 @@ void Pipeline::destroy()
 
 bool Pipeline::createRendererDescriptorSetLayout()
 {
-    // NCHORTEK TODO: This will eventually need to include TLAS
     std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
 
     // Configure a binding for our TLAS
@@ -295,8 +294,6 @@ bool Pipeline::createShaderBindingTable()
 
     // Allocate host-writable memory with persistently mapped, so the handles can
     // be written directly
-    // NCHORTEK TODO: Double check that using host-visible mapped memory for our buffer
-    // doesn't negatively impact performance during GPU/shader access of the SBT
     VmaAllocationCreateInfo allocCreateInfo{};
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT

@@ -226,7 +226,11 @@ float pdf(SurfaceInteraction surface, vec3 woW, vec3 wiW)
     vec3 wo = worldToLocal(nor) * woW;
     vec3 wi = worldToLocal(nor) * wiW;
 
-    if (wo.z == 0) return 0.; // The cosine of this vector would be zero
+    if (wo.z == 0)
+    {
+        // The cosine of this vector would be zero
+        return 0.;
+    }
 
     if (surface.material.type == kDiffuseRefl)
     {

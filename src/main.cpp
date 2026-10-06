@@ -299,8 +299,6 @@ int main(int argc, char** argv)
 
     // Initialize ImGui Data
     InitImguiData(guiData);
-    // NCHORTEK TODO: this eventually needs a vulkan-specific equivalent
-    //InitDataContainer(guiData);
 
     // GLFW main loop
     mainLoop();
