@@ -12,34 +12,51 @@ CUDA Path Tracer
 ## Build Instructions
 
 NCHORTEK TODO
+- CMake Changes
+- Environment variables and third party libraries
 
 ## Features Implemented
 
 ### Vulkan Hardware-Accelerated Ray Tracing (RT)
 
 NCHORTEK TODO
+- Overview write-up of the feature --> TLAS, BLAS, SBT, Raygen, Closest Hit, Miss
+- Performance impact of the feature.
+- If you did something to accelerate the feature, what did you do and why? --> Push Constants, Buffer Device Address
+- Compare your GPU version of the feature to a HYPOTHETICAL CPU version (you don't have to implement it!). Does it benefit or suffer from being implemented on the GPU? --> Yes of course, the HW was literally made for this.
+- How might this feature be optimized beyond your current implementation? --> SER
 
 ### Refraction & Dielectric Materials
 
 NCHORTEK TODO
+- Before/After images
+- Overview write-up of the feature
 
 ### Physically-Based Depth-of-Field
 
 NCHORTEK TODO
+- Before/After images
+- Overview write-up of the feature
 
 ### Direct Lighting & Multiple Importance Sampling (MIS)
 
 NCHORTEK TODO
+- Before/After images
+- Overview write-up of the feature
 
 ## Performance Analysis
 
-### Closed vs Open Scene
+### Naive Path Tracing
 
 NCHORTEK TODO
+- Noise in closed & open scenes
+- FPS in closed & open scenes
 
-### MIS vs Naive Path Tracing
+### Direct Lighting & Multiple Importance Sampling (MIS)
 
 NCHORTEK TODO
+- Noise in closed & open scenes
+- FPS in closed & open scenes
 
 ## References
 
@@ -55,6 +72,15 @@ https://vulkan-tutorial.com/
 
 https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/tutorial/
 
-### Class Code
+### Other CIS Courses
 
-cube.h, icosphere.h - adapted from CIS 5660 Procedural Graphics HW0
+#### CIS 5660 Procedural Graphics
+
+cube.h, icosphere.h - Primitive mesh generators adapted from *HW 0: Intro to Javascript and WebGL*
+
+https://github.com/nchortek/hw00-intro-base/blob/main/src/geometry/Cube.ts
+https://github.com/nchortek/hw00-intro-base/blob/main/src/geometry/Icosphere.ts
+
+#### CIS 5610 Advanced Rendering
+
+bsdf.glsl, math.glsl, raygen.rgen, sampleWarping.glsl - BSDF, sampling, and integrator logic adapted from *HW7: Global Illumination*
