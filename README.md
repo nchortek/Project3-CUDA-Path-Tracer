@@ -63,53 +63,41 @@ Crystal Table (Open), MIS Integration, 5000 Iterations, Max Depth 16
 
 <img src="img/crystalTableOpenMIS.png">
 
-NCHORTEK TODO
-- Overview write-up of the feature --> Describe the light CDF/PDF, describe what MIS does at a high-level and why we want to combine bsdf and snap-to-light sampling methods rather than just picking one for direct light contribution, describe why direct light sampling is beneficial over naive path tracing where the only light contribution comes from a ray terminating after intersecting a light.
-
-## Performance Analysis
-
-### Naive Path Tracing
-
 Crystal Table (Closed), Naive Integration, 5000 Iterations, Max Depth 16
 
 <img src="img/crystalTableClosedNaive.png">
-
-Crystal Table (Open), Naive Integration, 5000 Iterations, Max Depth 16
-
-<img src="img/crystalTableOpenNaive.png">
-
-Funhouse (Closed), Naive Integration, 5000 Iterations, Max Depth 16
-
-<img src="img/funhouseClosedNaive.png">
-
-Funhouse (Open), Naive Integration, 5000 Iterations, Max Depth 16
-
-<img src="img/funhouseOpenNaive.png">
-
-NCHORTEK TODO
-- Describe the causes for noise differences in closed vs open scenes
-- Describe the causes for FPS differences in closed vs open scenes
-
-### Direct Lighting & Multiple Importance Sampling (MIS)
 
 Crystal Table (Closed), MIS Integration, 5000 Iterations, Max Depth 16
 
 <img src="img/crystalTableClosedMIS.png">
 
-Crystal Table (Open), MIS Integration, 5000 Iterations, Max Depth 16
+Funhouse (Open), Naive Integration, 5000 Iterations, Max Depth 16
 
-<img src="img/crystalTableOpenMIS.png">
-
-Funhouse (Closed), MIS Integration, 5000 Iterations, Max Depth 16
-
-<img src="img/funhouseClosedMIS.png">
+<img src="img/funhouseOpenNaive.png">
 
 Funhouse (Open), MIS Integration, 5000 Iterations, Max Depth 16
 
 <img src="img/funhouseOpenMIS.png">
 
+Funhouse (Closed), Naive Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseClosedNaive.png">
+
+Funhouse (Closed), MIS Integration, 5000 Iterations, Max Depth 16
+
+<img src="img/funhouseClosedMIS.png">
+
 NCHORTEK TODO
-- Describe the causes for noise differences in closed vs open scenes
+- Overview write-up of the feature --> Describe the light CDF/PDF, describe what MIS does at a high-level and why we want to combine bsdf and snap-to-light sampling methods rather than just picking one for direct light contribution, describe why direct light sampling is beneficial over naive path tracing where the only light contribution comes from a ray terminating after intersecting a light.
+- Describe the causes for noise differences in closed vs open scenes --> Main takeaway: MIS consistently reduces noise, but the improvement over Naive is most pronounced in open scenes.
+
+## Performance Analysis
+
+### MIS vs Naive Path Tracing
+
+<img src="img/openClosedFPS.png">
+
+NCHORTEK TODO
 - Describe the causes for FPS differences in closed vs open scenes
 
 ## References
