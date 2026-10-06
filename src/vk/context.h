@@ -30,7 +30,7 @@ public:
     VulkanContext(VulkanContext&&) = delete;
     VulkanContext& operator=(VulkanContext&&) = delete;
 
-    bool init(GLFWwindow* window, bool enableValidation = true);
+    bool init(GLFWwindow* window, bool enableValidation = false);
     void destroy();
 
     VkCommandBuffer beginSingleTimeCommands();
