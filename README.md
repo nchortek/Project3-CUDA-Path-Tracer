@@ -151,18 +151,60 @@ Funhouse (Closed), MIS Integration, 5000 Iterations, Max Depth 16
 
 <img src="img/funhouseClosedMIS.png">
 
-NCHORTEK TODO
-- Overview write-up of the feature --> Describe the light CDF/PDF, describe what MIS does at a high-level and why we want to combine bsdf and snap-to-light sampling methods rather than just picking one for direct light contribution, describe why direct light sampling is beneficial over naive path tracing where the only light contribution comes from a ray terminating after intersecting a light.
-- Describe the causes for noise differences in closed vs open scenes --> Main takeaway: MIS consistently reduces noise, but the improvement over Naive is most pronounced in open scenes.
+**Direct light sampling.** In naive path tracing, a path contributes light only if it happens to hit an emitter before 
+it terminates. Most paths do not (especially when lights are small) so most samples are black which produces a noisy image. 
+Direct light sampling fixes this by deliberately connecting to a light at every non-specular bounce: it picks a point 
+on a random light, traces a shadow ray to check visibility, and adds that light's contribution to the current bounce.
+
+**Choosing a light sample.** At load time, every triangle of every emissive object is collected into a list with its 
+world-space area, along with a cumulative distribution function (CDF) over those areas. To sample, a uniformly random 
+number is binary-searched against the CDF, which selects a triangle with probability proportional to its area, and a 
+uniformly random point is then chosen on that triangle. Together this samples all emissive surface area uniformly. 
+The corresponding probability density function (PDF) is one over the total light area, converted to solid angle using 
+the distance to the light and the angle at which the light faces the surface.
+
+**Multiple importance sampling.** Light sampling and BSDF sampling each perform poorly in different situations. Light 
+sampling works well for small lights on diffuse surfaces but poorly when a light is large or close. BSDF sampling is the 
+opposite, and for purely specular surfaces it is the only option. Rather than picking one, MIS uses both at every bounce 
+and  weights each by the power heuristic, which favors whichever strategy was more likely to produce that direction. This 
+keeps the strengths of both sampling methods without counting any light twice. After a specular bounce, light sampling is 
+not possible, so emitted light is counted in full.
+
+**Open vs. closed scenes.** MIS reduces noise in every scene, but the improvement over naive is largest in the open 
+scenes. There, most naive paths escape the scene after a bounce or two without reaching a light, so nearly all of the 
+image's energy comes from a small fraction of samples. MIS recovers a lighting contribution at every diffuse bounce 
+regardless of where the path goes next. In the closed scenes, paths cannot escape and keep bouncing until they hit a 
+light or reach the maximum depth, so naive paths find a light far more often and start from a lower noise level. MIS 
+still helps in such cases, but there is less to gain.
 
 ## Performance Analysis
 
-### MIS vs Naive Path Tracing
+### MIS vs. Naive Path Tracing
 
 <img src="img/openClosedFPS.png">
 
-NCHORTEK TODO
-- Describe the causes for FPS differences in closed vs open scenes
+| Scene | Naive FPS | MIS FPS |
+| --- | --- | --- |
+| Crystal Table (Open) | 713.1 | 362.6 |
+| Crystal Table (Closed) | 303.4 | 114.2 |
+| Funhouse (Open) | 317.6 | 183.7 |
+| Funhouse (Closed) | 199.3 | 127.1 |
+
+Frame time is largely driven by the number of rays traced per path, and two factors change that number:
+
+**Open vs. closed.** In an open scene, a ray that does not intersect any geometry immediately terminates its path. 
+In a closed scene, every ray is guaranteed to intersect some geometry, so their paths continue until they hit a 
+light or reach the maximum depth of 16. Closing the scene makes every configuration slower, because there are more 
+rays being traced per path. The effect is strongest in the Crystal Table scene (2.4x slower for Naive, 3.2x for MIS), 
+because its open version is only a floor and one wall, and most paths exit the scene almost immediately. The Funhouse 
+scene is a corridor that is open at just one end, so its paths were already long, and closing it costs less (1.6x for 
+Naive, 1.4x for MIS).
+
+**Naive vs. MIS.** MIS traces an additional shadow ray at every non-specular bounce and evaluates the BSDF a second 
+time, so it runs at roughly 40-65% of the naive frame rate. The penalty is largest in the closed Crystal Table scene, 
+where the added walls are all diffuse and nearly every bounce triggers a shadow ray. It is smaller in the Funhouse scene, 
+where the many of the materials are purely specular and therefore skip light sampling. Overall, MIS is slower per frame, 
+but each frame carries far less noise, so it reaches a cleaner image in fewer iterations.
 
 ## References
 
