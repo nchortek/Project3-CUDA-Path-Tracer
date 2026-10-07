@@ -1,4 +1,4 @@
-CUDA Path Tracer
+Vulkan Path Tracer
 ================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
